@@ -1,0 +1,6 @@
+{
+  "name": "Egyptian MOE 1st Secondary English Exam Engine",
+  "description": "Comprehensive 5-level exam and assessment system for 1st Secondary Grade English aligned with the Egyptian Ministry of Education syllabus, featuring AI auto-correction for essays and novel critical thinking questions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

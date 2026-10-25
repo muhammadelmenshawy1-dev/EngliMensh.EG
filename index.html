@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Egyptian MOE 1st Secondary English Exam Engine</title>
+    <meta name="description" content="Comprehensive 5-level exam and assessment system for 1st Secondary Grade English aligned with the Egyptian Ministry of Education syllabus, featuring AI auto-correction for essays and novel critical thinking questions." />
+    <meta property="og:title" content="Egyptian MOE 1st Secondary English Exam Engine" />
+    <meta property="og:description" content="Comprehensive 5-level exam and assessment system for 1st Secondary Grade English aligned with the Egyptian Ministry of Education syllabus, featuring AI auto-correction for essays and novel critical thinking questions." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/app-cover.svg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="/app-cover.svg" />
+
+    <!-- PWA & Mobile Web App Meta Tags -->
+    <meta name="theme-color" content="#0B397D" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="EngliMensh" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/logo.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Caveat:wght@600;700&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+    <style>
+      @media print {
+        @page {
+          size: landscape;
+          margin: 0;
+        }
+        header, .no-print, nav, button, [role="navigation"] {
+          display: none !important;
+        }
+        body {
+          background: #0c101d !important;
+          color: white !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        .print-container {
+          max-width: 100% !important;
+          margin: 0 !important;
+          box-shadow: none !important;
+          border: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body class="bg-slate-50 font-sans text-slate-800">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
