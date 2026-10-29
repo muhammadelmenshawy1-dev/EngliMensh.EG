@@ -20,7 +20,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+          cache: ${{ hashFiles('package-lock.json') != '' && 'npm' || '' }}
+          cache-dependency-path: 'package-lock.json'
 
       - name: Setup Java 21 (Required by Capacitor 8 & Gradle)
         uses: actions/setup-java@v4
@@ -32,8 +33,13 @@ jobs:
       - name: Setup Android SDK (API 36)
         uses: android-actions/setup-android@v3
 
-      - name: Install Node dependencies
-        run: npm install
+      - name: Install Node dependencies (Reproducible via package-lock.json)
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
 
       - name: Run TypeScript typecheck
         run: npm run lint
