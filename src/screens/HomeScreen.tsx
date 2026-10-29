@@ -11,6 +11,7 @@ import {
   Sparkles,
   Volume2,
   X,
+  FileCheck2,
 } from 'lucide-react';
 import { StudentProfile, MainAppTab } from '../types.ts';
 import { ArcadeGameType } from '../types/gameQuestions.ts';
@@ -130,7 +131,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       const parts = lastKey.split('_');
       const stagePart = parts[0];
       const gradePart = Number(parts[1]);
-      const unitNumPart = Number(parts[2]);
+      const unitNumPart = Number(parts[parts.length - 1]);
       const found = allCurriculaUnits.find(
         (u) =>
           u.stage === stagePart &&
@@ -351,6 +352,37 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
       </div>
 
+      {/* 3b. Official Exams Hub Card (بنك الامتحانات الشاملة والاختبارات الوزارية) */}
+      <div className="rounded-3xl bg-gradient-to-r from-[#1E3A8A] via-[#172E6E] to-[#0F2856] text-white p-4 sm:p-5 shadow-md border border-blue-800/80 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-[#F59E0B] shrink-0">
+            <FileCheck2 className="w-6 h-6" />
+          </div>
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm sm:text-base font-black text-white">
+                بنك الامتحانات الشاملة
+              </h3>
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-[#F59E0B] text-slate-950">
+                وزاري
+              </span>
+            </div>
+            <p className="text-xs text-blue-100/90 font-medium">
+              اختبارات الوحدات ونماذج الوزارة للابتدائي والإعدادي والثانوي والبكالوريا
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => onNavigateTab('exams')}
+          className="px-3.5 py-2.5 rounded-2xl bg-[#F59E0B] hover:bg-amber-400 text-slate-950 font-black text-xs shrink-0 flex items-center gap-1 shadow-sm cursor-pointer active:scale-95 transition-all"
+        >
+          <span>ابدأ اختباراً</span>
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+      </div>
+
       {/* 4. Two-Column Split: Featured Games & Mini Leaderboard (Matches Screen 1 Bottom Split) */}
       <div className="grid grid-cols-2 gap-3">
         {/* Right Column in RTL: الألعاب الحالية */}
@@ -410,7 +442,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
           {/* Mini Trophy Podium Graphic */}
           <div
-            onClick={() => onNavigateTab('profile')}
+            onClick={() => onNavigateTab('leaderboard')}
             className="rounded-2xl bg-gradient-to-b from-slate-50 to-amber-50/60 border border-amber-200/60 p-2.5 cursor-pointer hover:border-amber-300 transition-all"
           >
             <div className="flex items-end justify-center gap-2 h-16 pt-2">

@@ -124,7 +124,7 @@ export const getStoredStudent = (): StudentProfile | null => {
         grade: '1st Secondary',
         school: 'General Secondary School',
         group: legacyGroup && legacyGroup.trim() ? legacyGroup.trim() : 'Group A',
-        totalScore: 100,
+        totalScore: 0,
         badges: ['first_step'],
         lastActive: new Date().toISOString(),
         createdAt: new Date().toISOString(),

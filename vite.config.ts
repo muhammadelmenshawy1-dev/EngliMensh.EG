@@ -151,7 +151,49 @@ export default defineConfig(() => {
       }),
     ],
     build: {
-      chunkSizeWarningLimit: 4000,
+      chunkSizeWarningLimit: 1200,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('lucide-react')) return 'vendor-icons';
+              if (id.includes('motion')) return 'vendor-motion';
+              return 'vendor';
+            }
+            if (
+              id.includes('src/data/primary') ||
+              id.includes('src/data/questionBanks/primary')
+            ) {
+              return 'curriculum-primary';
+            }
+            if (
+              id.includes('src/data/prep') ||
+              id.includes('src/data/preparatory')
+            ) {
+              return 'curriculum-preparatory';
+            }
+            if (id.includes('src/data/baccalaureate')) {
+              return 'curriculum-baccalaureate';
+            }
+            if (
+              id.includes('src/data/secondary') ||
+              id.includes('src/data/units') ||
+              id.includes('src/data/governmentalExams') ||
+              id.includes('src/data/termRevisions') ||
+              id.includes('src/data/allUnits')
+            ) {
+              return 'curriculum-secondary';
+            }
+            if (
+              id.includes('src/data/thematicDictionaryDatabase') ||
+              id.includes('src/data/dictionary') ||
+              id.includes('src/data/vocabularyDecks')
+            ) {
+              return 'curriculum-dictionary';
+            }
+          },
+        },
+      },
     },
     resolve: {
       alias: {

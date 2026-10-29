@@ -16,6 +16,7 @@ import {
   speakText,
   stopSpeaking,
   checkMicrophonePermission,
+  getNativeSpeechRecognitionPlugin,
   comparePronunciation,
   PronunciationResult,
 } from '../utils/speechService.ts';
@@ -87,10 +88,9 @@ export const SmartToolsScreen: React.FC<SmartToolsScreenProps> = ({
 
   const recognitionRef = useRef<any>(null);
   const listenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const audioStreamRef = useRef<MediaStream | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const animFrameRef = useRef<number | null>(null);
+  const waveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mountedRef = useRef<boolean>(true);
+  const hasEvaluatedSessionRef = useRef<boolean>(false);
 
   const activeTargetSentence =
     customTargetSentence.trim() || PRACTICE_SENTENCES[selectedTargetIndex].text;
@@ -105,65 +105,32 @@ export const SmartToolsScreen: React.FC<SmartToolsScreenProps> = ({
   }, []);
 
   const stopWaveformMeter = () => {
-    if (animFrameRef.current !== null) {
-      cancelAnimationFrame(animFrameRef.current);
-      animFrameRef.current = null;
-    }
-    if (audioStreamRef.current) {
-      audioStreamRef.current.getTracks().forEach((t) => t.stop());
-      audioStreamRef.current = null;
-    }
-    if (audioContextRef.current) {
-      try {
-        void audioContextRef.current.close();
-      } catch {
-        // Ignore
-      }
-      audioContextRef.current = null;
+    if (waveIntervalRef.current !== null) {
+      clearInterval(waveIntervalRef.current);
+      waveIntervalRef.current = null;
     }
     if (mountedRef.current) {
       setWaveBars(DEFAULT_WAVE_BARS);
     }
   };
 
-  const startLiveWaveformMeter = async () => {
-    try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        return;
-      }
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (!mountedRef.current) {
-        stream.getTracks().forEach((t) => t.stop());
-        return;
-      }
-      audioStreamRef.current = stream;
-
-      const AudioCtx =
-        window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-
-      const ctx: AudioContext = new AudioCtx();
-      audioContextRef.current = ctx;
-      const source = ctx.createMediaStreamSource(stream);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 64;
-      source.connect(analyser);
-
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      const updateBars = () => {
-        if (!mountedRef.current || !audioContextRef.current) return;
-        analyser.getByteFrequencyData(dataArray);
-        const nextBars = DEFAULT_WAVE_BARS.map((_, i) => {
-          const val = dataArray[i % dataArray.length] || 0;
-          return Math.max(10, Math.min(48, Math.round((val / 255) * 44) + 10));
-        });
-        setWaveBars(nextBars);
-        animFrameRef.current = requestAnimationFrame(updateBars);
-      };
-      animFrameRef.current = requestAnimationFrame(updateBars);
-    } catch {
-      // Ignore meter error; SpeechRecognition handles permission state
-    }
+  /**
+   * Non-contending visual waveform meter while SpeechRecognition owns the microphone hardware.
+   * Never calls navigator.mediaDevices.getUserMedia concurrently with SpeechRecognition!
+   */
+  const startLiveWaveformMeter = () => {
+    stopWaveformMeter();
+    let tick = 0;
+    waveIntervalRef.current = setInterval(() => {
+      if (!mountedRef.current) return;
+      tick += 1;
+      setWaveBars(
+        DEFAULT_WAVE_BARS.map((base, idx) => {
+          const wave = Math.sin(tick * 0.6 + idx * 0.7) * 14;
+          return Math.max(10, Math.min(48, Math.round(base + wave)));
+        })
+      );
+    }, 110);
   };
 
   const cleanupAudioAndRecognition = () => {
@@ -173,15 +140,24 @@ export const SmartToolsScreen: React.FC<SmartToolsScreenProps> = ({
     }
     if (recognitionRef.current) {
       try {
-        recognitionRef.current.onstart = null;
-        recognitionRef.current.onresult = null;
-        recognitionRef.current.onerror = null;
-        recognitionRef.current.onend = null;
-        recognitionRef.current.abort();
+        const rec = recognitionRef.current;
+        recognitionRef.current = null;
+        rec.onstart = null;
+        rec.onresult = null;
+        rec.onerror = null;
+        rec.onend = null;
+        rec.abort();
       } catch {
         // Ignore
       }
-      recognitionRef.current = null;
+    }
+    try {
+      const capSpeech = (window as any).Capacitor?.Plugins?.SpeechRecognition;
+      if (capSpeech && typeof capSpeech.stop === 'function') {
+        void capSpeech.stop();
+      }
+    } catch {
+      // Ignore
     }
     stopWaveformMeter();
   };
@@ -239,19 +215,70 @@ export const SmartToolsScreen: React.FC<SmartToolsScreenProps> = ({
     setVoiceError('');
     setPronunciationResult(null);
     setSpokenText('');
+    hasEvaluatedSessionRef.current = false;
     setTrainerState('requesting_permission');
 
     stopSpeaking();
     setIsPlayingTargetTTS(false);
 
+    // Non-contending permission check (never opens a getUserMedia audio stream)
     const permCheck = await checkMicrophonePermission();
     if (!permCheck.granted) {
+      if (!mountedRef.current) return;
       setTrainerState('permission_denied');
       setVoiceError(
         permCheck.errorArabic || 'تعذر الوصول إلى الميكروفون. تحقق من الصلاحيات.'
       );
       setShowManualFallback(true);
       return;
+    }
+
+    // Capability-based Capacitor Android Native SpeechRecognition adapter if present
+    const capSpeech = getNativeSpeechRecognitionPlugin();
+    if (capSpeech && typeof capSpeech.start === 'function') {
+      try {
+        setTrainerState('listening');
+        startLiveWaveformMeter();
+        listenTimerRef.current = setTimeout(() => {
+          if (mountedRef.current) {
+            cleanupAudioAndRecognition();
+            setTrainerState('timeout');
+            setVoiceError(
+              'انتهت مهلة الاستماع (8 ثوانٍ) دون التقاط جملة واضحة. اضغط تسجيل وحاول مرة أخرى.'
+            );
+          }
+        }, PRONUNCIATION_LISTEN_TIMEOUT_MS);
+
+        const capRes = await capSpeech.start({
+          language: 'en-US',
+          maxResults: 1,
+          partialResults: false,
+          popup: false,
+        });
+
+        cleanupAudioAndRecognition();
+        if (!mountedRef.current) return;
+
+        const recognized = capRes?.matches?.[0]?.trim?.() || '';
+        if (!recognized) {
+          setTrainerState('no_speech');
+          setVoiceError('لم نلتقط كلاماً واضحاً. حاول التحدث مرة أخرى بصوت واضح.');
+          return;
+        }
+
+        if (!hasEvaluatedSessionRef.current) {
+          hasEvaluatedSessionRef.current = true;
+          evaluateRecognizedTranscript(recognized);
+        }
+        return;
+      } catch {
+        cleanupAudioAndRecognition();
+        if (!mountedRef.current) return;
+        setTrainerState('permission_denied');
+        setVoiceError('تعذر بدء الميكروفون. تأكد من إعطاء الصلاحية في إعدادات التطبيق.');
+        setShowManualFallback(true);
+        return;
+      }
     }
 
     const SpeechRecognitionAPI =
@@ -278,7 +305,7 @@ export const SmartToolsScreen: React.FC<SmartToolsScreenProps> = ({
       if (!mountedRef.current) return;
       setTrainerState('listening');
       setVoiceError('');
-      void startLiveWaveformMeter();
+      startLiveWaveformMeter();
 
       listenTimerRef.current = setTimeout(() => {
         if (mountedRef.current) {
@@ -303,6 +330,9 @@ export const SmartToolsScreen: React.FC<SmartToolsScreenProps> = ({
         );
         return;
       }
+
+      if (hasEvaluatedSessionRef.current) return;
+      hasEvaluatedSessionRef.current = true;
 
       setVoiceError('');
       evaluateRecognizedTranscript(recognized);
@@ -356,7 +386,6 @@ export const SmartToolsScreen: React.FC<SmartToolsScreenProps> = ({
     };
 
     recognitionRef.current = instance;
-    setTrainerState('listening');
 
     try {
       instance.start();

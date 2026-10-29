@@ -26,9 +26,12 @@ import {
   saveWordToBank,
   loadWordBank,
   updateStudentProfileMetadata,
+  getUnitKey as buildCanonicalUnitKey,
+  getLegacyUnitKey,
   LearningStoreState,
 } from '../services/learningStore.ts';
 import { speakText, stopSpeaking } from '../utils/speechService.ts';
+import { registerBackNavigationHandler } from '../utils/navigationHistory.ts';
 
 interface CurriculaScreenProps {
   currentStage: EducationalStage;
@@ -36,6 +39,7 @@ interface CurriculaScreenProps {
   onSelectStage: (stage: EducationalStage) => void;
   onSelectGrade: (grade: number) => void;
   onOpenUnit: (unit: UnitCurriculum) => void;
+  onOpenExamsHub?: () => void;
   onStateUpdated?: () => void;
 }
 
@@ -47,6 +51,7 @@ export const CurriculaScreen: React.FC<CurriculaScreenProps> = ({
   onSelectStage,
   onSelectGrade,
   onOpenUnit,
+  onOpenExamsHub,
   onStateUpdated,
 }) => {
   const [learningState, setLearningState] = useState<LearningStoreState>(() =>
@@ -87,6 +92,17 @@ export const CurriculaScreen: React.FC<CurriculaScreenProps> = ({
       stopSpeaking();
     };
   }, []);
+
+  // Register Android/Browser Back navigation handler when an in-screen lesson is open
+  useEffect(() => {
+    if (!activeLessonUnit) return;
+    const unregister = registerBackNavigationHandler('curricula-in-screen-lesson', () => {
+      stopSpeaking();
+      setActiveLessonUnit(null);
+      return true;
+    });
+    return unregister;
+  }, [activeLessonUnit]);
 
   const getGradesForStage = (stage: 'Primary' | 'Preparatory' | 'Secondary') => {
     if (stage === 'Primary') return [1, 2, 3, 4, 5, 6];
@@ -135,14 +151,22 @@ export const CurriculaScreen: React.FC<CurriculaScreenProps> = ({
   const activeUnits = filteredUnits.length > 0 ? filteredUnits : gradeUnits;
 
   const getUnitKey = (unit: UnitCurriculum): string => {
-    return `${unit.stage}_${unit.grade}_${unit.unitNumber}_${unit.track || 'std'}_${unit.semester || 1}`;
+    return buildCanonicalUnitKey(
+      unit.stage,
+      unit.grade,
+      unit.semester || 1,
+      unit.unitNumber,
+      unit.track
+    );
   };
 
   const getLegacyOrCurrentUnitProgress = (unit: UnitCurriculum) => {
-    const fullKey = getUnitKey(unit);
-    const simpleKey = `${unit.stage}_${unit.grade}_${unit.unitNumber}`;
+    const canonicalKey = getUnitKey(unit);
+    const legacyFullKey = `${unit.stage}_${unit.grade}_${unit.unitNumber}_${unit.track || 'std'}_${unit.semester || 1}`;
+    const simpleKey = getLegacyUnitKey(unit.stage, unit.grade, unit.unitNumber);
     return (
-      learningState.unitProgress[fullKey] ||
+      learningState.unitProgress[canonicalKey] ||
+      learningState.unitProgress[legacyFullKey] ||
       learningState.unitProgress[simpleKey]
     );
   };
@@ -151,8 +175,8 @@ export const CurriculaScreen: React.FC<CurriculaScreenProps> = ({
     unit: UnitCurriculum,
     initialTab: LessonModuleTab = 'vocab'
   ) => {
-    const simpleKey = `${unit.stage}_${unit.grade}_${unit.unitNumber}`;
-    const updated = setLastActiveUnit(simpleKey);
+    const canonicalKey = getUnitKey(unit);
+    const updated = setLastActiveUnit(canonicalKey);
     setLearningState(updated);
     setActiveLessonUnit(unit);
     setActiveModuleTab(initialTab);
@@ -167,8 +191,8 @@ export const CurriculaScreen: React.FC<CurriculaScreenProps> = ({
     moduleType: LessonModuleTab,
     xpAmount = 20
   ) => {
-    const simpleKey = `${unit.stage}_${unit.grade}_${unit.unitNumber}`;
-    const updated = recordUnitModuleCompletion(simpleKey, moduleType, xpAmount);
+    const canonicalKey = getUnitKey(unit);
+    const updated = recordUnitModuleCompletion(canonicalKey, moduleType, xpAmount);
     setLearningState(updated);
     onStateUpdated?.();
   };
@@ -728,13 +752,25 @@ export const CurriculaScreen: React.FC<CurriculaScreenProps> = ({
     >
       {/* 1. Stage & Grade Selection Header Card (Matches Screen 2 Mockup) */}
       <div className="bg-white rounded-3xl p-4 sm:p-5 border border-[#E2E8F0] shadow-sm space-y-3.5">
-        <div className="text-center space-y-0.5">
-          <h1 className="text-lg sm:text-xl font-black text-[#0F172A]">
-            رحلتك التعليمية - اختر صفك
-          </h1>
-          <p className="text-xs text-[#64748B] font-semibold">
-            منهج وزارة التربية والتعليم المصرية (Connect · New Hello · Secondary)
-          </p>
+        <div className="flex items-center justify-between gap-2">
+          <div className="space-y-0.5 text-right">
+            <h1 className="text-lg sm:text-xl font-black text-[#0F172A]">
+              رحلتك التعليمية - اختر صفك
+            </h1>
+            <p className="text-xs text-[#64748B] font-semibold">
+              منهج وزارة التربية والتعليم المصرية (Connect · New Hello · Secondary)
+            </p>
+          </div>
+          {onOpenExamsHub && (
+            <button
+              type="button"
+              onClick={onOpenExamsHub}
+              className="px-3 py-2 rounded-2xl bg-amber-50 hover:bg-amber-100 text-[#B45309] border border-amber-300 text-xs font-black shrink-0 flex items-center gap-1.5 cursor-pointer transition-colors"
+            >
+              <Award className="w-4 h-4 text-[#D97706]" />
+              <span>بنك الامتحانات</span>
+            </button>
+          )}
         </div>
 
         {/* Stage Pills (الابتدائي | المتوسط | الثانوي) */}

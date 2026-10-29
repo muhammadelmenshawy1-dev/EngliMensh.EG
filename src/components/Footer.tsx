@@ -1,18 +1,20 @@
-import React from 'react';
-import { MessageCircle, Heart, Phone } from 'lucide-react';
+import React, { useState } from 'react';
+import { MessageCircle, Heart, BookOpen, FileCheck2, Languages, Gamepad2, Trophy, X } from 'lucide-react';
 
 interface FooterProps {
-  onNavigateTab?: (tab: 'home' | 'exams' | 'games' | 'leaderboard' | 'profile') => void;
+  onNavigateTab?: (tab: 'home' | 'curricula' | 'exams' | 'tools' | 'games' | 'leaderboard' | 'profile') => void;
 }
 
 export const Footer: React.FC<FooterProps> = ({
   onNavigateTab,
 }) => {
+  const [showCommunityInfo, setShowCommunityInfo] = useState(false);
+
   return (
     <footer id="footer-brand-section" className="bg-[#07224D] text-white pt-12 pb-24 md:pb-12 border-t border-[#0d346e] select-none" dir="ltr">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Main Footer Row */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-8 pb-10 border-b border-blue-900/60">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-8 pb-8 border-b border-blue-900/60">
           
           {/* 1. Left: Brand Logo & Tagline */}
           <div className="flex items-center gap-3.5">
@@ -93,20 +95,83 @@ export const Footer: React.FC<FooterProps> = ({
               <MessageCircle className="w-5 h-5 fill-current" />
             </a>
 
-            {/* Community / Heart */}
-            <a
-              href="#about"
-              onClick={(e) => {
-                e.preventDefault();
-                alert('EngliMensh Community: Over 15,000 students across Egyptian Governorates mastering English with authentic ministerial standards.');
-              }}
-              className="w-10 h-10 rounded-full bg-white/10 hover:bg-amber-400 hover:text-slate-950 text-[#FFC928] flex items-center justify-center transition-all duration-200 hover:scale-110 shadow-sm"
+            {/* Community / Heart (Non-blocking inline banner toggle instead of alert()) */}
+            <button
+              type="button"
+              onClick={() => setShowCommunityInfo((prev) => !prev)}
+              className="w-10 h-10 rounded-full bg-white/10 hover:bg-amber-400 hover:text-slate-950 text-[#FFC928] flex items-center justify-center transition-all duration-200 hover:scale-110 shadow-sm cursor-pointer"
               title="Students & Parents Community"
             >
               <Heart className="w-5 h-5 fill-current" />
-            </a>
+            </button>
           </div>
         </div>
+
+        {/* Dismissible Community Info Banner */}
+        {showCommunityInfo && (
+          <div className="my-4 p-4 rounded-2xl bg-blue-950/90 border border-[#FFC928]/40 flex items-center justify-between gap-4 text-xs sm:text-sm text-blue-100" dir="rtl">
+            <div className="flex items-center gap-2.5">
+              <Heart className="w-4 h-4 text-[#FFC928] shrink-0 fill-current" />
+              <span>
+                مجتمع EngliMensh التعليمي: يضم آلاف الطلاب وأولياء الأمور في مختلف محافظات مصر لإتقان اللغة الإنجليزية وفق أحدث مواصفات وزارة التربية والتعليم.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowCommunityInfo(false)}
+              className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white shrink-0 cursor-pointer"
+              aria-label="إغلاق"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Quick Platform Navigation Links */}
+        {onNavigateTab && (
+          <div className="py-4 flex flex-wrap items-center justify-center gap-2 sm:gap-3 border-b border-blue-900/40" dir="rtl">
+            <button
+              type="button"
+              onClick={() => onNavigateTab('curricula')}
+              className="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/15 text-blue-100 hover:text-[#FFC928] text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-[#FFC928]" />
+              <span>المناهج الدراسية</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateTab('exams')}
+              className="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/15 text-blue-100 hover:text-[#FFC928] text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <FileCheck2 className="w-3.5 h-3.5 text-[#FFC928]" />
+              <span>بنك الامتحانات الشاملة</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateTab('tools')}
+              className="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/15 text-blue-100 hover:text-[#FFC928] text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <Languages className="w-3.5 h-3.5 text-[#FFC928]" />
+              <span>المترجم الفوري والقاموس</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateTab('games')}
+              className="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/15 text-blue-100 hover:text-[#FFC928] text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <Gamepad2 className="w-3.5 h-3.5 text-[#FFC928]" />
+              <span>الألعاب التعليمية</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateTab('leaderboard')}
+              className="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/15 text-blue-100 hover:text-[#FFC928] text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <Trophy className="w-3.5 h-3.5 text-[#FFC928]" />
+              <span>لوحة الشرف والترتيب</span>
+            </button>
+          </div>
+        )}
 
         {/* Contact Strip (Teacher Direct Hotline) */}
         <div className="py-4 flex flex-wrap items-center justify-between gap-3 text-xs text-blue-200/90 border-b border-blue-900/40">

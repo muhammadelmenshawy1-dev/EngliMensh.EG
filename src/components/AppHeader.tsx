@@ -1,5 +1,5 @@
 import React from 'react';
-import { Flame, Star, ShieldCheck, Trophy } from 'lucide-react';
+import { Flame, Star, ShieldCheck, Trophy, FileCheck2 } from 'lucide-react';
 import { StudentProfile } from '../types.ts';
 import { loadLearningState } from '../services/learningStore.ts';
 
@@ -9,6 +9,7 @@ interface AppHeaderProps {
   streakDays?: number;
   onOpenProfile?: () => void;
   onOpenLeaderboard?: () => void;
+  onOpenExams?: () => void;
   onLogoClick?: () => void;
 }
 
@@ -18,11 +19,12 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   streakDays,
   onOpenProfile,
   onOpenLeaderboard,
+  onOpenExams,
   onLogoClick,
 }) => {
   const learningState = loadLearningState();
   const displayXp = totalXp ?? Math.max(learningState.xp, student?.totalScore || 0);
-  const displayStreak = streakDays ?? Math.max(learningState.streakDays, student?.highStreak || 1);
+  const displayStreak = streakDays ?? Math.max(learningState.streakDays, student?.highStreak || 0);
 
   return (
     <header
@@ -64,8 +66,20 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           </div>
         </button>
 
-        {/* Left in RTL: XP Counter & Trophy Button */}
+        {/* Left in RTL: Exams Hub, Trophy & XP Counter */}
         <div className="flex items-center gap-1.5">
+          {onOpenExams && (
+            <button
+              type="button"
+              onClick={onOpenExams}
+              className="p-2 rounded-full bg-blue-950/70 hover:bg-blue-900 text-amber-300 border border-blue-700/70 transition-colors cursor-pointer"
+              title="بنك الامتحانات الشاملة"
+              aria-label="بنك الامتحانات الشاملة"
+            >
+              <FileCheck2 className="w-4 h-4" />
+            </button>
+          )}
+
           {onOpenLeaderboard && (
             <button
               type="button"

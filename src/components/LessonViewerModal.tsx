@@ -36,6 +36,7 @@ import {
 } from '../data/skillsBoosterData.ts';
 import { PrimaryLessonViewer } from './PrimaryLessonViewer.tsx';
 import { getPrimaryLesson } from '../data/primaryStageData.ts';
+import { speakText, stopSpeaking } from '../utils/speechService.ts';
 import '../data/primaryCurriculumInjector.ts';
 
 interface LessonViewerModalProps {
@@ -214,17 +215,15 @@ export const LessonViewerModal: React.FC<LessonViewerModalProps> = ({
     setRevealedHots(prev => ({ ...prev, [qId]: !prev[qId] }));
   };
 
-  // Text-to-speech for vocabulary words
+  // Text-to-speech for vocabulary words via unified speechService
   const speakWord = (word: string) => {
-    if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(word);
-    utterance.lang = 'en-US';
-    utterance.rate = 0.9;
     setPlayingWord(word);
-    utterance.onend = () => setPlayingWord(null);
-    utterance.onerror = () => setPlayingWord(null);
-    window.speechSynthesis.speak(utterance);
+    speakText(word, 'en', {
+      rate: 0.9,
+      onStart: () => setPlayingWord(word),
+      onEnd: () => setPlayingWord(null),
+      onError: () => setPlayingWord(null),
+    });
   };
 
   const handleExerciseOptionClick = (qId: string, choice: 'A' | 'B' | 'C' | 'D') => {
@@ -245,7 +244,10 @@ export const LessonViewerModal: React.FC<LessonViewerModalProps> = ({
       <header className="sticky top-0 z-30 bg-gradient-to-r from-[#0B397D] via-[#0957B7] to-[#0878E8] text-white px-4 sm:px-8 py-3.5 flex items-center justify-between border-b border-blue-400/20 shadow-md shrink-0">
         {/* Left: Back Button */}
         <button
-          onClick={onClose}
+          onClick={() => {
+            stopSpeaking();
+            onClose();
+          }}
           className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs sm:text-sm transition-all border border-white/20 flex items-center gap-2 cursor-pointer group active:scale-95 shrink-0"
         >
           <ArrowLeft className="w-4 h-4 text-[#FFC928] group-hover:-translate-x-1 transition-transform" />

@@ -1,15 +1,61 @@
 /**
  * speechService.ts — EngliMensh.eg Audio, Speech Recognition & Text-to-Speech Engine
  * Author & System Architect: Mohammad El-Menshawy (محمد المنشاوي)
- * 
+ *
  * Features:
- * - Robust SpeechSynthesis with asynchronous voice loading (voiceschanged) & GC protection
- * - Safe Web Speech API SpeechRecognition wrapper with getUserMedia permission check
- * - Arabic error diagnostics for microphone permission, audio capture, & offline states
+ * - Robust SpeechSynthesis with asynchronous voice loading (voiceschanged), Egyptian Arabic preference & GC protection
+ * - Capability-based Capacitor Android native TTS & SpeechRecognition bridge with safe Web Speech fallback
+ * - Zero dual-microphone contention: never opens a redundant getUserMedia stream while SpeechRecognition owns the mic
  * - String normalization & Levenshtein + word-ratio pronunciation assessment
  */
 
+import { Capacitor } from '@capacitor/core';
+import { SpeechRecognition as CapSpeechRecognition } from '@capacitor-community/speech-recognition';
+import { TextToSpeech as CapTextToSpeech } from '@capacitor-community/text-to-speech';
+
 export type LanguageCode = 'en' | 'ar';
+
+/**
+ * Returns the registered Capacitor native SpeechRecognition plugin when running on a native platform.
+ */
+export function getNativeSpeechRecognitionPlugin(): typeof CapSpeechRecognition | null {
+  try {
+    if (typeof Capacitor?.isNativePlatform === 'function' && Capacitor.isNativePlatform()) {
+      return CapSpeechRecognition;
+    }
+    if (typeof window !== 'undefined' && (window as any).Capacitor?.Plugins?.SpeechRecognition) {
+      return (window as any).Capacitor.Plugins.SpeechRecognition;
+    }
+  } catch {
+    // Ignore in non-Capacitor environments
+  }
+  return null;
+}
+
+/**
+ * Returns the registered Capacitor native TextToSpeech plugin when running on a native platform.
+ */
+export function getNativeTextToSpeechPlugin(): typeof CapTextToSpeech | null {
+  try {
+    if (typeof Capacitor?.isNativePlatform === 'function' && Capacitor.isNativePlatform()) {
+      return CapTextToSpeech;
+    }
+    if (typeof window !== 'undefined' && (window as any).Capacitor?.Plugins?.TextToSpeech) {
+      return (window as any).Capacitor.Plugins.TextToSpeech;
+    }
+  } catch {
+    // Ignore in non-Capacitor environments
+  }
+  return null;
+}
+
+export type SpeechRecognitionLifecycleState =
+  | 'idle'
+  | 'requesting_permission'
+  | 'listening'
+  | 'processing'
+  | 'success'
+  | 'error';
 
 export interface SpeechVoiceOption {
   voice: SpeechSynthesisVoice;
@@ -20,9 +66,10 @@ export interface SpeechVoiceOption {
 // Global reference to prevent JS Garbage Collection of active Utterance
 let activeUtterance: SpeechSynthesisUtterance | null = null;
 let voicesList: SpeechSynthesisVoice[] = [];
+let activeSpeechSessionId = 0;
 
 /**
- * Initializes available voices for Speech Synthesis
+ * Initializes available voices for Speech Synthesis with delayed initialization support
  */
 export function initSpeechVoices(): Promise<SpeechSynthesisVoice[]> {
   return new Promise((resolve) => {
@@ -31,56 +78,109 @@ export function initSpeechVoices(): Promise<SpeechSynthesisVoice[]> {
       return;
     }
 
-    const load = () => {
-      const available = window.speechSynthesis.getVoices();
-      if (available.length > 0) {
-        voicesList = available;
-        resolve(available);
-      } else {
-        voicesList = [];
-        resolve([]);
+    let resolved = false;
+    const finish = (list: SpeechSynthesisVoice[]) => {
+      if (!resolved) {
+        resolved = true;
+        resolve(list);
       }
     };
 
-    load();
+    const load = () => {
+      try {
+        const available = window.speechSynthesis.getVoices() || [];
+        if (available.length > 0) {
+          voicesList = available;
+          finish(available);
+          return true;
+        }
+      } catch {
+        // Ignore
+      }
+      return false;
+    };
+
+    if (load()) return;
 
     if (window.speechSynthesis.onvoiceschanged !== undefined) {
-      window.speechSynthesis.onvoiceschanged = () => {
-        load();
+      const prevHandler = window.speechSynthesis.onvoiceschanged;
+      window.speechSynthesis.onvoiceschanged = (ev) => {
+        if (typeof prevHandler === 'function') {
+          try {
+            prevHandler.call(window.speechSynthesis, ev);
+          } catch {
+            // Ignore
+          }
+        }
+        const available = window.speechSynthesis.getVoices() || [];
+        voicesList = available;
+        finish(available);
       };
     }
+
+    // Fallback timeout so initSpeechVoices never hangs if browser has 0 voices
+    setTimeout(() => {
+      const available = window.speechSynthesis?.getVoices?.() || [];
+      voicesList = available;
+      finish(available);
+    }, 600);
   });
 }
 
 // Auto-initialize on module load
 if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-  initSpeechVoices();
+  void initSpeechVoices();
 }
 
 /**
- * Selects best available voice for language ('en' or 'ar')
+ * Selects best available voice for language ('en' or 'ar').
+ * Prefers Egyptian Arabic ('ar-EG') first for Arabic, with safe fallback to 'ar-SA' or any 'ar' voice.
  */
-export function getBestVoiceForLanguage(lang: LanguageCode): SpeechSynthesisVoice | null {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return null;
+export function getBestVoiceForLanguage(
+  lang: LanguageCode,
+  availableVoicesOverride?: SpeechSynthesisVoice[]
+): SpeechSynthesisVoice | null {
+  const currentVoices =
+    availableVoicesOverride ??
+    (voicesList.length > 0
+      ? voicesList
+      : typeof window !== 'undefined' && 'speechSynthesis' in window
+      ? window.speechSynthesis.getVoices()
+      : []);
 
-  const currentVoices = voicesList.length > 0 ? voicesList : window.speechSynthesis.getVoices();
   if (!currentVoices || currentVoices.length === 0) return null;
 
   const targetLangPrefix = lang === 'en' ? 'en' : 'ar';
-  const preferredLocales = lang === 'en' ? ['en-US', 'en-GB', 'en-AU', 'en'] : ['ar-SA', 'ar-EG', 'ar-AE', 'ar'];
+  // Prefer ar-EG first for Egyptian learners, then ar-SA, then general Arabic
+  const preferredLocales =
+    lang === 'en'
+      ? ['en-US', 'en-GB', 'en-AU', 'en']
+      : ['ar-EG', 'ar-SA', 'ar-AE', 'ar'];
 
   for (const locale of preferredLocales) {
-    const match = currentVoices.find((v) => v.lang.toLowerCase() === locale.toLowerCase() || v.lang.toLowerCase().replace('_', '-').startsWith(locale.toLowerCase()));
-    if (match) return match;
+    const normLocale = locale.toLowerCase();
+    const exactMatch = currentVoices.find(
+      (v) => v.lang && v.lang.toLowerCase().replace('_', '-') === normLocale
+    );
+    if (exactMatch) return exactMatch;
+
+    const prefixLocaleMatch = currentVoices.find(
+      (v) =>
+        v.lang &&
+        v.lang.toLowerCase().replace('_', '-').startsWith(normLocale)
+    );
+    if (prefixLocaleMatch) return prefixLocaleMatch;
   }
 
-  // Fallback to prefix
-  const prefixMatch = currentVoices.find((v) => v.lang.toLowerCase().startsWith(targetLangPrefix));
+  // Fallback to language prefix
+  const prefixMatch = currentVoices.find(
+    (v) => v.lang && v.lang.toLowerCase().startsWith(targetLangPrefix)
+  );
   return prefixMatch || null;
 }
 
 /**
- * Speaks text using Text-to-Speech safely with GC protection and event handlers
+ * Speaks text using Text-to-Speech safely with GC protection, cancellation, and Capacitor native fallback.
  */
 export function speakText(
   text: string,
@@ -93,113 +193,253 @@ export function speakText(
     onError?: (errorMsg: string) => void;
   }
 ): void {
-  const cleanText = text.trim();
-  if (!cleanText) return;
+  const cleanText = text ? text.trim() : '';
+  if (!cleanText) {
+    options?.onEnd?.();
+    return;
+  }
 
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-    if (options?.onError) {
-      options.onError('خدمة القراءة الصوتية غير مدعومة في متصفحك.');
-    }
+  const sessionId = ++activeSpeechSessionId;
+  const targetDefaultLocale = lang === 'en' ? 'en-US' : 'ar-EG';
+  const rate = options?.rate ?? 0.9;
+  const pitch = options?.pitch ?? 1.0;
+
+  // Check if Capacitor native TextToSpeech plugin is available when on native Android or when Web Speech is missing
+  const capTTS = getNativeTextToSpeechPlugin();
+
+  const hasWebSpeech =
+    typeof window !== 'undefined' &&
+    'speechSynthesis' in window &&
+    typeof SpeechSynthesisUtterance !== 'undefined';
+
+  if (!hasWebSpeech && capTTS && typeof capTTS.speak === 'function') {
+    options?.onStart?.();
+    capTTS
+      .stop?.()
+      .catch(() => {})
+      .finally(() => {
+        if (sessionId !== activeSpeechSessionId) return;
+        capTTS
+          .speak({
+            text: cleanText,
+            lang: targetDefaultLocale,
+            rate,
+            pitch,
+          })
+          .then(() => {
+            if (sessionId === activeSpeechSessionId) options?.onEnd?.();
+          })
+          .catch(() => {
+            if (sessionId === activeSpeechSessionId) {
+              options?.onError?.('تعذر تشغيل الصوت عبر محرك الجهاز.');
+            }
+          });
+      });
+    return;
+  }
+
+  if (!hasWebSpeech) {
+    options?.onError?.('خدمة القراءة الصوتية غير مدعومة في متصفحك الحالي.');
     return;
   }
 
   try {
-    // Stop ongoing speech
+    // Cancel any ongoing speech safely before starting new utterance
     window.speechSynthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = lang === 'en' ? 'en-US' : 'ar-SA';
-    utterance.rate = options?.rate ?? 0.9;
-    utterance.pitch = options?.pitch ?? 1.0;
-
     const chosenVoice = getBestVoiceForLanguage(lang);
+
     if (chosenVoice) {
       utterance.voice = chosenVoice;
+      utterance.lang = chosenVoice.lang || targetDefaultLocale;
+    } else {
+      utterance.lang = targetDefaultLocale;
     }
 
+    utterance.rate = rate;
+    utterance.pitch = pitch;
+
     utterance.onstart = () => {
-      if (options?.onStart) options.onStart();
+      if (sessionId !== activeSpeechSessionId) return;
+      options?.onStart?.();
     };
 
     utterance.onend = () => {
-      activeUtterance = null;
-      if (options?.onEnd) options.onEnd();
+      if (activeUtterance === utterance) {
+        activeUtterance = null;
+      }
+      if (sessionId !== activeSpeechSessionId) return;
+      options?.onEnd?.();
     };
 
-    utterance.onerror = (event) => {
-      activeUtterance = null;
-      // Ignore canceled speech errors triggered by new clicks
-      if (event.error === 'canceled' || event.error === 'interrupted') {
-        if (options?.onEnd) options.onEnd();
+    utterance.onerror = (event: any) => {
+      if (activeUtterance === utterance) {
+        activeUtterance = null;
+      }
+      // Ignore canceled/interrupted events caused by stopSpeaking() or rapid re-clicks
+      if (event?.error === 'canceled' || event?.error === 'interrupted') {
+        if (sessionId === activeSpeechSessionId) {
+          options?.onEnd?.();
+        }
         return;
       }
-      console.warn('[speechService] TTS Error:', event.error);
-      if (options?.onError) {
-        options.onError('تعذر تشغيل الصوت. تحقق من إعدادات الميكروفون والصوت.');
+
+      // If WebView speechSynthesis failed and Capacitor native TTS is available, fall back seamlessly
+      if (capTTS && typeof capTTS.speak === 'function' && sessionId === activeSpeechSessionId) {
+        capTTS
+          .speak({ text: cleanText, lang: targetDefaultLocale, rate, pitch })
+          .then(() => {
+            if (sessionId === activeSpeechSessionId) options?.onEnd?.();
+          })
+          .catch(() => {
+            if (sessionId === activeSpeechSessionId) {
+              options?.onError?.('تعذر تشغيل الصوت. تحقق من إعدادات الصوت في جهازك.');
+            }
+          });
+        return;
+      }
+
+      if (sessionId === activeSpeechSessionId) {
+        options?.onError?.('تعذر تشغيل الصوت. تحقق من إعدادات الصوت في جهازك.');
       }
     };
 
-    // Store global reference to prevent garbage collection mid-speech
+    // Retain global reference to prevent garbage collection mid-sentence
     activeUtterance = utterance;
     window.speechSynthesis.speak(utterance);
-  } catch (err: any) {
+  } catch (err) {
     activeUtterance = null;
-    console.error('[speechService] TTS Exception:', err);
-    if (options?.onError) {
-      options.onError('حدث خطأ أثناء تشغيل القارئ الصوتي.');
+    if (sessionId === activeSpeechSessionId) {
+      options?.onError?.('حدث خطأ أثناء تشغيل القارئ الصوتي.');
     }
   }
 }
 
 /**
- * Stops ongoing speech synthesis
+ * Stops ongoing speech synthesis and invalidates any pending utterance callbacks.
  */
 export function stopSpeaking(): void {
-  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+  activeSpeechSessionId += 1;
+  activeUtterance = null;
+
+  if (typeof window !== 'undefined') {
+    if ('speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch {
+        // Ignore
+      }
+    }
     try {
-      window.speechSynthesis.cancel();
-    } catch (e) {
+      const capTTS = getNativeTextToSpeechPlugin();
+      if (capTTS && typeof capTTS.stop === 'function') {
+        void capTTS.stop();
+      }
+    } catch {
       // Ignore
     }
   }
-  activeUtterance = null;
 }
 
 /**
- * Requests & verifies microphone permission beforehand
+ * Translates Web Speech API error codes into clear, actionable Arabic messages.
  */
-export async function checkMicrophonePermission(): Promise<{ granted: boolean; errorArabic?: string }> {
-  if (typeof window === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+export function getArabicSpeechErrorMessage(errorCode: string): string {
+  switch (errorCode) {
+    case 'not-allowed':
+    case 'permission-denied':
+    case 'service-not-allowed':
+      return 'تم رفض صلاحية الميكروفون. اسمح للتطبيق باستخدام الميكروفون من إعدادات المتصفح أو الجهاز.';
+    case 'audio-capture':
+      return 'لم يتم العثور على ميكروفون متاح أو أن الميكروفون قيد الاستخدام من تطبيق آخر.';
+    case 'no-speech':
+      return 'لم نلتقط أي كلام واضح. اضغط على الميكروفون وتحدث بوضوح.';
+    case 'network':
+      return 'تعذر الاتصال بخدمة التعرف على الصوت. تحقق من اتصال الإنترنت وحاول مرة أخرى.';
+    case 'language-not-supported':
+      return 'خدمة التعرف على الصوت لا تدعم اللغة المحددة في هذا الجهاز.';
+    case 'aborted':
+      return 'تم إيقاف التسجيل الصوتي.';
+    default:
+      return 'تعذر التعرف على الكلام. تحقق من صلاحية الميكروفون وحاول مرة أخرى.';
+  }
+}
+
+/**
+ * Checks whether browser SpeechRecognition or Capacitor native SpeechRecognition is supported.
+ * NOTE: Does NOT open a getUserMedia stream so it never contends with SpeechRecognition hardware access!
+ */
+export function isSpeechRecognitionSupported(): boolean {
+  if (typeof window === 'undefined') return false;
+  const hasWebSpeech = Boolean(
+    (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+  );
+  const hasCapSpeech = Boolean(getNativeSpeechRecognitionPlugin());
+  return hasWebSpeech || hasCapSpeech;
+}
+
+/**
+ * Non-contending permission check: uses navigator.permissions.query if available,
+ * without opening a competing getUserMedia audio stream before SpeechRecognition starts.
+ */
+export async function checkMicrophonePermission(): Promise<{
+  granted: boolean;
+  errorArabic?: string;
+}> {
+  if (typeof window === 'undefined') {
     return {
       granted: false,
-      errorArabic: 'التعرف على الصوت غير مدعوم في هذا المتصفح أو التطبيق. استخدم متصفح Google Chrome.',
+      errorArabic: 'بيئة التشغيل الحالية لا تدعم الميكروفون.',
     };
   }
 
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    // Stop tracks immediately after verifying permission
-    stream.getTracks().forEach((track) => track.stop());
-    return { granted: true };
-  } catch (err: any) {
-    console.warn('[speechService] Microphone Permission Denied:', err);
-    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+  // If Capacitor native SpeechRecognition plugin is present, check/request its native permission
+  const capSpeech = getNativeSpeechRecognitionPlugin();
+  if (capSpeech && typeof capSpeech.requestPermissions === 'function') {
+    try {
+      const perm = await capSpeech.requestPermissions();
+      if (perm?.speechRecognition === 'denied') {
+        return {
+          granted: false,
+          errorArabic: getArabicSpeechErrorMessage('not-allowed'),
+        };
+      }
+      return { granted: true };
+    } catch {
       return {
         granted: false,
-        errorArabic: 'تم رفض صلاحية الميكروفون. يرجى السماح بالميكروفون من إعدادات الموقع أو المتصفح.',
+        errorArabic: getArabicSpeechErrorMessage('not-allowed'),
       };
     }
-    if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-      return {
-        granted: false,
-        errorArabic: 'لم يتم العثور على ميكروفون متصل. تحقق من توصيل الميكروفون بالجهاز.',
-      };
-    }
+  }
+
+  if (!isSpeechRecognitionSupported()) {
     return {
       granted: false,
-      errorArabic: 'تعذر الوصول للميكروفون. تحقق من الصلاحيات وتوصيل الجهاز.',
+      errorArabic:
+        'التعرف على الصوت غير مدعوم في هذا المتصفح. يرجى استخدام متصفح Google Chrome.',
     };
   }
+
+  // Query Permissions API passively without locking audio hardware via getUserMedia
+  if (navigator.permissions && typeof navigator.permissions.query === 'function') {
+    try {
+      const status = await navigator.permissions.query({
+        name: 'microphone' as PermissionName,
+      });
+      if (status.state === 'denied') {
+        return {
+          granted: false,
+          errorArabic: getArabicSpeechErrorMessage('not-allowed'),
+        };
+      }
+    } catch {
+      // Permissions API may not support 'microphone' in all browsers; let SpeechRecognition.start() prompt directly
+    }
+  }
+
+  return { granted: true };
 }
 
 /**
@@ -210,15 +450,11 @@ export function normalizeTextForComparison(text: string): string {
   return text
     .trim()
     .toLowerCase()
-    // Remove diacritics / tashkeel
     .replace(/[\u064B-\u0652]/g, '')
-    // Normalize Arabic letters
     .replace(/[أإآ]/g, 'ا')
     .replace(/ة/g, 'ه')
     .replace(/ى/g, 'ي')
-    // Remove punctuation
     .replace(/[.,/#!$%^&*;:{}=\-_`~()?"'’]/g, '')
-    // Replace multiple spaces with single space
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -235,7 +471,9 @@ export function calculateLevenshteinDistance(str1: string, str2: string): number
   if (m === 0) return n;
   if (n === 0) return m;
 
-  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  const dp: number[][] = Array.from({ length: m + 1 }, () =>
+    new Array(n + 1).fill(0)
+  );
 
   for (let i = 0; i <= m; i++) dp[i][0] = i;
   for (let j = 0; j <= n; j++) dp[0][j] = j;
@@ -244,9 +482,9 @@ export function calculateLevenshteinDistance(str1: string, str2: string): number
     for (let j = 1; j <= n; j++) {
       const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
       dp[i][j] = Math.min(
-        dp[i - 1][j] + 1,      // Deletion
-        dp[i][j - 1] + 1,      // Insertion
-        dp[i - 1][j - 1] + cost // Substitution
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost
       );
     }
   }
@@ -255,7 +493,7 @@ export function calculateLevenshteinDistance(str1: string, str2: string): number
 }
 
 export interface PronunciationResult {
-  scorePercent: number; // 0 to 100
+  scorePercent: number;
   matchedWords: string[];
   missingWords: string[];
   recognizedText: string;
@@ -264,9 +502,12 @@ export interface PronunciationResult {
 }
 
 /**
- * Compares recognized speech against a target sentence to produce real accuracy evaluation
+ * Compares recognized speech against a target sentence to produce accuracy evaluation
  */
-export function comparePronunciation(targetText: string, recognizedText: string): PronunciationResult {
+export function comparePronunciation(
+  targetText: string,
+  recognizedText: string
+): PronunciationResult {
   const normTarget = normalizeTextForComparison(targetText);
   const normRecognized = normalizeTextForComparison(recognizedText);
 
@@ -277,7 +518,8 @@ export function comparePronunciation(targetText: string, recognizedText: string)
       missingWords: normTarget.split(' ').filter(Boolean),
       recognizedText,
       targetText,
-      feedbackArabic: 'لم يتم التقاط أي صوت واضح. حاول التحدث مرة أخرى بصوت أعلى.',
+      feedbackArabic:
+        'لم يتم التقاط أي صوت واضح. حاول التحدث مرة أخرى بصوت أعلى.',
     };
   }
 
@@ -288,7 +530,6 @@ export function comparePronunciation(targetText: string, recognizedText: string)
   const missingWords: string[] = [];
 
   targetWords.forEach((tw) => {
-    // Check exact or near word match (Levenshtein <= 1 for short words)
     const isMatched = recognizedWords.some((rw) => {
       if (tw === rw) return true;
       if (tw.length > 3 && calculateLevenshteinDistance(tw, rw) <= 1) return true;
@@ -302,14 +543,18 @@ export function comparePronunciation(targetText: string, recognizedText: string)
     }
   });
 
-  // Calculate composite score (Word ratio 70% + Character similarity 30%)
-  const wordMatchRatio = targetWords.length > 0 ? matchedWords.length / targetWords.length : 0;
-  
+  const wordMatchRatio =
+    targetWords.length > 0 ? matchedWords.length / targetWords.length : 0;
+
   const maxLen = Math.max(normTarget.length, normRecognized.length);
   const levDist = calculateLevenshteinDistance(normTarget, normRecognized);
-  const charSimRatio = maxLen > 0 ? Math.max(0, (maxLen - levDist) / maxLen) : 0;
+  const charSimRatio =
+    maxLen > 0 ? Math.max(0, (maxLen - levDist) / maxLen) : 0;
 
-  const scorePercent = Math.min(100, Math.max(0, Math.round((wordMatchRatio * 0.7 + charSimRatio * 0.3) * 100)));
+  const scorePercent = Math.min(
+    100,
+    Math.max(0, Math.round((wordMatchRatio * 0.7 + charSimRatio * 0.3) * 100))
+  );
 
   let feedbackArabic = '';
   if (scorePercent >= 90) {
@@ -317,9 +562,11 @@ export function comparePronunciation(targetText: string, recognizedText: string)
   } else if (scorePercent >= 75) {
     feedbackArabic = 'جيد جداً! نطقك قريب جداً من الصحيح، واصل التدريب. 👍';
   } else if (scorePercent >= 50) {
-    feedbackArabic = 'أداء مقبول. استمع للنطق المثالي أولاً ثم حاول التكرار ببطء. 🎧';
+    feedbackArabic =
+      'أداء مقبول. استمع للنطق المثالي أولاً ثم حاول التكرار ببطء. 🎧';
   } else {
-    feedbackArabic = 'يحتاج لمزيد من التدريب. اضغط على زر الاستماع للنطق المثالي ثم أعد المحاولة. 💡';
+    feedbackArabic =
+      'يحتاج لمزيد من التدريب. اضغط على زر الاستماع للنطق المثالي ثم أعد المحاولة. 💡';
   }
 
   return {

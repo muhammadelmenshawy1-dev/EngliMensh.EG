@@ -10,17 +10,30 @@ import {
   findAnyExamAcrossAllGrades
 } from './data/allUnits.ts';
 import { Exam, ExamLevel, StudentProgress, EssayEvaluation, StoryEvaluation } from './types.ts';
-import { gradeEssayWithAI, gradeStoryWithAI, getStoredApiKey, setStoredApiKey } from './services/aiGrader.ts';
 import {
-  BookOpen, Award, CheckCircle2, XCircle, Lock, Unlock, Clock,
-  Key, Sparkles, ChevronRight, RotateCcw,
-  Printer, ArrowLeft, ArrowRight, ShieldCheck, GraduationCap, Flame,
-  Volume2, Building2, Calendar, FileText, MessageCircle, Phone, User, UserCheck,
-  Download, Smartphone, Apple, QrCode, Gamepad2, Home, Zap, Lightbulb
+  gradeEssayWithAI,
+  gradeStoryWithAI,
+  gradeResearchWithAI,
+  ResearchEvaluation,
+} from './services/aiGrader.ts';
+import {
+  BookOpen, Award, CheckCircle2, XCircle, Clock,
+  Sparkles, RotateCcw,
+  Printer, ArrowLeft, ArrowRight,
+  MessageCircle, User,
+  QrCode, Lightbulb,
+  GraduationCap, ShieldCheck, Unlock, Lock, Building2, Calendar
 } from 'lucide-react';
 import { MainAppTab, StudentProfile, ExamHistoryRecord } from './types.ts';
 import { getStoredStudent, recordExamCompletion, clearStudentSession } from './services/studentStorage.ts';
 import { syncExamResultToCloud, CloudSyncPayload } from './services/cloudSync.ts';
+import { speakText, stopSpeaking } from './utils/speechService.ts';
+import {
+  initGlobalBackNavigationListener,
+  syncNavigationStateToHistory,
+  registerBackNavigationHandler,
+} from './utils/navigationHistory.ts';
+import { isPackagedMobileEnvironment } from './config/apiConfig.ts';
 import { usePWAInstall } from './hooks/usePWAInstall.ts';
 import { InstallAppModal } from './components/InstallAppModal.tsx';
 import { ShareModal } from './components/ShareModal.tsx';
@@ -54,7 +67,8 @@ import { SmartToolsScreen } from './screens/SmartToolsScreen.tsx';
 import { ProfileScreen } from './screens/ProfileScreen.tsx';
 import { ArcadeGameType } from './types/gameQuestions.ts';
 
-const PROGRESS_KEY = 'egypt_moe_student_progress_v2';
+const LEGACY_PROGRESS_KEY = 'egypt_moe_student_progress_v2';
+const SCOPED_PROGRESS_KEY = 'egypt_moe_student_progress_v3';
 
 const initialProgress: StudentProgress = {
   1: { 1: { unlocked: true, completed: false, bestScore: 0, percentage: 0 }, 2: { unlocked: false, completed: false, bestScore: 0, percentage: 0 }, 3: { unlocked: false, completed: false, bestScore: 0, percentage: 0 }, 4: { unlocked: false, completed: false, bestScore: 0, percentage: 0 }, 5: { unlocked: false, completed: false, bestScore: 0, percentage: 0 } },
@@ -64,6 +78,30 @@ const initialProgress: StudentProgress = {
   5: { 1: { unlocked: true, completed: false, bestScore: 0, percentage: 0 }, 2: { unlocked: false, completed: false, bestScore: 0, percentage: 0 }, 3: { unlocked: false, completed: false, bestScore: 0, percentage: 0 }, 4: { unlocked: false, completed: false, bestScore: 0, percentage: 0 }, 5: { unlocked: false, completed: false, bestScore: 0, percentage: 0 } },
   6: { 1: { unlocked: true, completed: false, bestScore: 0, percentage: 0 }, 2: { unlocked: false, completed: false, bestScore: 0, percentage: 0 }, 3: { unlocked: false, completed: false, bestScore: 0, percentage: 0 }, 4: { unlocked: false, completed: false, bestScore: 0, percentage: 0 }, 5: { unlocked: false, completed: false, bestScore: 0, percentage: 0 } }
 };
+
+function loadScopedProgressMap(): Record<string, StudentProgress> {
+  try {
+    const rawV3 = localStorage.getItem(SCOPED_PROGRESS_KEY);
+    if (rawV3) {
+      const parsed = JSON.parse(rawV3);
+      if (parsed && typeof parsed === 'object') {
+        return parsed;
+      }
+    }
+    const rawV2 = localStorage.getItem(LEGACY_PROGRESS_KEY);
+    if (rawV2) {
+      const legacyParsed = JSON.parse(rawV2);
+      if (legacyParsed && typeof legacyParsed === 'object') {
+        const migrated = { general_g10: legacyParsed };
+        localStorage.setItem(SCOPED_PROGRESS_KEY, JSON.stringify(migrated));
+        return migrated;
+      }
+    }
+  } catch {
+    // Ignore storage parse error
+  }
+  return { general_g10: initialProgress };
+}
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'levels' | 'governmental' | 'term1' | 'term2'>('levels');
@@ -76,6 +114,7 @@ export default function App() {
   const [mcqAnswers, setMcqAnswers] = useState<{ [qId: string]: number[] }>({});
   const [storyAnswers, setStoryAnswers] = useState<{ [qId: string]: string }>({});
   const [essayAnswer, setEssayAnswer] = useState<string>('');
+  const [researchAnswer, setResearchAnswer] = useState<string>('');
   const [translationAnswers, setTranslationAnswers] = useState<{ [qId: string]: number }>({});
   const [openStoryHints, setOpenStoryHints] = useState<{ [qId: string]: boolean }>({});
 
@@ -83,28 +122,19 @@ export default function App() {
   const [mcqScore, setMcqScore] = useState<number>(0);
   const [storyEvaluations, setStoryEvaluations] = useState<{ [qId: string]: StoryEvaluation }>({});
   const [essayEvaluation, setEssayEvaluation] = useState<EssayEvaluation | null>(null);
+  const [researchEvaluation, setResearchEvaluation] = useState<ResearchEvaluation | null>(null);
   const [totalEarned, setTotalEarned] = useState<number>(0);
   const [totalMax, setTotalMax] = useState<number>(0);
   const [percentage, setPercentage] = useState<number>(0);
 
-  // Timer
+  // Timer & Submission Lock
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const timerRef = useRef<any>(null);
+  const isSubmittingExamRef = useRef<boolean>(false);
 
-  // Student progress
-  const [progress, setProgress] = useState<StudentProgress>(() => {
-    try {
-      const stored = localStorage.getItem(PROGRESS_KEY);
-      return stored ? JSON.parse(stored) : initialProgress;
-    } catch {
-      return initialProgress;
-    }
-  });
-
-  // Settings Modal
-  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
-  const [apiKeyInput, setApiKeyInput] = useState<string>('');
-  const [hasApiKey, setHasApiKey] = useState<boolean>(false);
+  // In-App Exam Confirmation Modals (replaces blocking window.confirm)
+  const [showSubmitConfirmModal, setShowSubmitConfirmModal] = useState<boolean>(false);
+  const [showExitExamConfirmModal, setShowExitExamConfirmModal] = useState<boolean>(false);
 
   // Print mode
   const [isPrintMode, setIsPrintMode] = useState<boolean>(false);
@@ -120,9 +150,16 @@ export default function App() {
   const [examSecondaryPath, setExamSecondaryPath] = useState<'general' | 'baccalaureate'>('general');
   const [examGrade, setExamGrade] = useState<number>(10);
 
+  // Student progress scoped by track + grade (so Unit 1 in Grade 10 never unlocks Unit 1 in Grade 11/12/Baccalaureate)
+  const [progressByScope, setProgressByScope] = useState<Record<string, StudentProgress>>(() =>
+    loadScopedProgressMap()
+  );
+  const currentProgressScopeKey = `${examSecondaryPath}_g${examGrade}`;
+  const progress: StudentProgress = progressByScope[currentProgressScopeKey] || initialProgress;
+
   // Persistent Student Profile (Auto-Login with zero repeated login on revisit)
   const [student, setStudent] = useState<StudentProfile | null>(() => getStoredStudent());
-  const [studentName, setStudentName] = useState<string>(() => student?.name || localStorage.getItem('englimensh_student_name') || 'عمر محمد');
+  const [studentName, setStudentName] = useState<string>(() => student?.name || localStorage.getItem('englimensh_student_name') || 'طالب جديد');
   const [studentGroup, setStudentGroup] = useState<string>(() => student?.group || localStorage.getItem('englimensh_student_group') || 'General');
   const [isFirstLaunch, setIsFirstLaunch] = useState<boolean>(false);
   const [showRegistrationModal, setShowRegistrationModal] = useState<boolean>(false);
@@ -161,13 +198,20 @@ export default function App() {
   const [showShareModal, setShowShareModal] = useState<boolean>(false);
   const [shareCustomText, setShareCustomText] = useState<string>('');
 
-  useEffect(() => {
-    setHasApiKey(Boolean(getStoredApiKey()));
-  }, []);
-
-  const saveProgress = (newProgress: StudentProgress) => {
-    setProgress(newProgress);
-    localStorage.setItem(PROGRESS_KEY, JSON.stringify(newProgress));
+  const saveProgress = (newProgress: StudentProgress, scopeKeyOverride?: string) => {
+    const targetScope = scopeKeyOverride || currentProgressScopeKey;
+    setProgressByScope((prev) => {
+      const updatedMap = { ...prev, [targetScope]: newProgress };
+      try {
+        localStorage.setItem(SCOPED_PROGRESS_KEY, JSON.stringify(updatedMap));
+        if (targetScope === 'general_g10') {
+          localStorage.setItem(LEGACY_PROGRESS_KEY, JSON.stringify(newProgress));
+        }
+      } catch {
+        // Ignore storage quota errors
+      }
+      return updatedMap;
+    });
   };
 
   // Timer effect
@@ -188,13 +232,18 @@ export default function App() {
   }, [examState, timeLeft]);
 
   const executeStartExam = (exam: Exam) => {
+    isSubmittingExamRef.current = false;
+    setShowSubmitConfirmModal(false);
+    setShowExitExamConfirmModal(false);
     setActiveExam(exam);
     setMcqAnswers({});
     setStoryAnswers({});
     setEssayAnswer('');
+    setResearchAnswer('');
     setTranslationAnswers({});
     setStoryEvaluations({});
     setEssayEvaluation(null);
+    setResearchEvaluation(null);
     setActiveSectionTab('mcq');
     setTimeLeft(exam.durationMinutes * 60);
     setExamState('taking');
@@ -276,175 +325,325 @@ export default function App() {
   };
 
   const handleSubmitExam = async () => {
-    if (!activeExam) return;
+    if (!activeExam || isSubmittingExamRef.current) return;
+    isSubmittingExamRef.current = true;
+    setShowSubmitConfirmModal(false);
     setExamState('evaluating');
 
-    // 1. Evaluate MCQs
-    let earnedMCQ = 0;
-    let maxMCQ = 0;
+    try {
+      // 1. Evaluate MCQs
+      let earnedMCQ = 0;
+      let maxMCQ = 0;
 
-    activeExam.mcqs.forEach(q => {
-      maxMCQ += q.points;
-      const userAns = mcqAnswers[q.id] || [];
-      if (q.type === 'mrq') {
-        const correctCount = userAns.filter(ans => q.correctAnswers.includes(ans)).length;
-        if (correctCount === 2 && userAns.length === 2) {
-          earnedMCQ += q.points;
-        } else if (correctCount === 1 && userAns.length <= 2) {
-          earnedMCQ += q.points / 2;
-        }
-      } else {
-        if (userAns.length > 0 && userAns[0] === q.correctAnswers[0]) {
-          earnedMCQ += q.points;
-        }
-      }
-    });
-
-    if (activeExam.reading) {
-      activeExam.reading.questions.forEach(q => {
+      activeExam.mcqs.forEach(q => {
         maxMCQ += q.points;
         const userAns = mcqAnswers[q.id] || [];
-        if (userAns.length > 0 && userAns[0] === q.correctAnswers[0]) {
-          earnedMCQ += q.points;
+        if (q.type === 'mrq') {
+          const correctCount = userAns.filter(ans => q.correctAnswers.includes(ans)).length;
+          if (correctCount === 2 && userAns.length === 2) {
+            earnedMCQ += q.points;
+          } else if (correctCount === 1 && userAns.length <= 2) {
+            earnedMCQ += q.points / 2;
+          }
+        } else {
+          if (userAns.length > 0 && userAns[0] === q.correctAnswers[0]) {
+            earnedMCQ += q.points;
+          }
         }
       });
-    }
 
-    let earnedTranslation = 0;
-    let maxTranslation = 0;
-    if (activeExam.translation) {
-      activeExam.translation.forEach(t => {
-        maxTranslation += 2;
-        if (translationAnswers[t.id] === t.correctIndex) {
-          earnedTranslation += 2;
+      if (activeExam.reading) {
+        activeExam.reading.questions.forEach(q => {
+          maxMCQ += q.points;
+          const userAns = mcqAnswers[q.id] || [];
+          if (userAns.length > 0 && userAns[0] === q.correctAnswers[0]) {
+            earnedMCQ += q.points;
+          }
+        });
+      }
+
+      let earnedTranslation = 0;
+      let maxTranslation = 0;
+      if (activeExam.translation) {
+        activeExam.translation.forEach(t => {
+          maxTranslation += 2;
+          if (translationAnswers[t.id] === t.correctIndex) {
+            earnedTranslation += 2;
+          }
+        });
+      }
+
+      setMcqScore(earnedMCQ + earnedTranslation);
+
+      // 2. Evaluate Story Questions via Server-Side AI / Built-in Rubric
+      const storyEvalResults: { [qId: string]: StoryEvaluation } = {};
+      let earnedStory = 0;
+      let maxStory = 0;
+
+      if (activeExam.storyQuestions) {
+        for (const st of activeExam.storyQuestions) {
+          maxStory += st.maxMarks;
+          const userText = storyAnswers[st.id] || '';
+          const evalRes = await gradeStoryWithAI(
+            st.chapter,
+            st.question,
+            userText,
+            st.modelAnswer,
+            st.keyCriteria
+          );
+          storyEvalResults[st.id] = evalRes;
+          earnedStory += evalRes.score;
         }
-      });
-    }
+        setStoryEvaluations(storyEvalResults);
+      }
 
-    setMcqScore(earnedMCQ + earnedTranslation);
+      // 3. Evaluate Writing Task via Server-Side AI / Built-in Rubric
+      let earnedEssay = 0;
+      let maxEssay = 0;
+      let essayRes: EssayEvaluation | null = null;
 
-    // 2. Evaluate Story Questions via AI
-    const storyEvalResults: { [qId: string]: StoryEvaluation } = {};
-    let earnedStory = 0;
-    let maxStory = 0;
-
-    if (activeExam.storyQuestions) {
-      for (const st of activeExam.storyQuestions) {
-        maxStory += st.maxMarks;
-        const userText = storyAnswers[st.id] || '';
-        const evalRes = await gradeStoryWithAI(
-          st.chapter,
-          st.question,
-          userText,
-          st.modelAnswer,
-          st.keyCriteria
+      if (activeExam.writingTask) {
+        maxEssay = 14;
+        essayRes = await gradeEssayWithAI(
+          activeExam.writingTask.title,
+          activeExam.writingTask.prompt,
+          essayAnswer,
+          activeExam.writingTask.modelResponse
         );
-        storyEvalResults[st.id] = evalRes;
-        earnedStory += evalRes.score;
+        setEssayEvaluation(essayRes);
+        earnedEssay = essayRes.totalScore;
       }
-      setStoryEvaluations(storyEvalResults);
-    }
 
-    // 3. Evaluate Writing Task via AI
-    let earnedEssay = 0;
-    let maxEssay = 0;
-    let essayRes: EssayEvaluation | null = null;
+      // 4. Evaluate Baccalaureate Academic Research Task if present
+      let earnedResearch = 0;
+      let maxResearch = 0;
+      if (activeExam.academicResearchTask) {
+        maxResearch = activeExam.academicResearchTask.maxMarks || 6;
+        const researchRes = await gradeResearchWithAI(
+          activeExam.academicResearchTask.title,
+          activeExam.academicResearchTask.thesisPrompt,
+          researchAnswer,
+          activeExam.academicResearchTask.modelDefense,
+          maxResearch
+        );
+        setResearchEvaluation(researchRes);
+        earnedResearch = researchRes.score;
+      } else {
+        setResearchEvaluation(null);
+      }
 
-    if (activeExam.writingTask) {
-      maxEssay = 14;
-      essayRes = await gradeEssayWithAI(
-        activeExam.writingTask.title,
-        activeExam.writingTask.prompt,
-        essayAnswer,
-        activeExam.writingTask.modelResponse
+      const totalPossible = maxMCQ + maxTranslation + maxStory + maxEssay + maxResearch;
+      const totalAchieved = Number(
+        (earnedMCQ + earnedTranslation + earnedStory + earnedEssay + earnedResearch).toFixed(1)
       );
-      setEssayEvaluation(essayRes);
-      earnedEssay = essayRes.totalScore;
-    }
+      const calculatedPercentage = totalPossible > 0 ? Math.round((totalAchieved / totalPossible) * 100) : 0;
 
-    const totalPossible = maxMCQ + maxTranslation + maxStory + maxEssay;
-    const totalAchieved = Number((earnedMCQ + earnedTranslation + earnedStory + earnedEssay).toFixed(1));
-    const calculatedPercentage = totalPossible > 0 ? Math.round((totalAchieved / totalPossible) * 100) : 0;
+      setTotalEarned(totalAchieved);
+      setTotalMax(totalPossible);
+      setPercentage(calculatedPercentage);
 
-    setTotalEarned(totalAchieved);
-    setTotalMax(totalPossible);
-    setPercentage(calculatedPercentage);
+      // Progression unlocking scoped to the exam's track + grade
+      if (activeExam.category === 'unit_level' || !activeExam.category) {
+        const examScopeKey = `${
+          activeExam.trackType === 'baccalaureate' ? 'baccalaureate' : examSecondaryPath
+        }_g${activeExam.grade || examGrade}`;
+        const scopedProgress = progressByScope[examScopeKey] || initialProgress;
+        const currentUnitProgress = scopedProgress[activeExam.unitId] || initialProgress[activeExam.unitId] || initialProgress[1];
+        const isPass = calculatedPercentage >= 70;
+        const nextLevel = (activeExam.level + 1) as ExamLevel;
 
-    // Progression unlocking
-    if (activeExam.category === 'unit_level' || !activeExam.category) {
-      const currentUnitProgress = progress[activeExam.unitId] || initialProgress[activeExam.unitId];
-      const isPass = calculatedPercentage >= 70;
-      const nextLevel = (activeExam.level + 1) as ExamLevel;
-
-      const updatedUnitProgress = {
-        ...currentUnitProgress,
-        [activeExam.level]: {
-          unlocked: true,
-          completed: true,
-          bestScore: Math.max(currentUnitProgress[activeExam.level]?.bestScore || 0, totalAchieved),
-          percentage: Math.max(currentUnitProgress[activeExam.level]?.percentage || 0, calculatedPercentage),
-          lastAttemptDate: new Date().toLocaleDateString('ar-EG')
-        }
-      };
-
-      if (isPass && nextLevel <= 5) {
-        updatedUnitProgress[nextLevel] = {
-          ...updatedUnitProgress[nextLevel],
-          unlocked: true
+        const updatedUnitProgress = {
+          ...currentUnitProgress,
+          [activeExam.level]: {
+            unlocked: true,
+            completed: true,
+            bestScore: Math.max(currentUnitProgress[activeExam.level]?.bestScore || 0, totalAchieved),
+            percentage: Math.max(currentUnitProgress[activeExam.level]?.percentage || 0, calculatedPercentage),
+            lastAttemptDate: new Date().toLocaleDateString('ar-EG')
+          }
         };
+
+        if (isPass && nextLevel <= 5) {
+          updatedUnitProgress[nextLevel] = {
+            ...updatedUnitProgress[nextLevel],
+            unlocked: true
+          };
+        }
+
+        saveProgress(
+          {
+            ...scopedProgress,
+            [activeExam.unitId]: updatedUnitProgress
+          },
+          examScopeKey
+        );
       }
 
-      saveProgress({
-        ...progress,
-        [activeExam.unitId]: updatedUnitProgress
+      // Record exam completion in persistent student history & award points
+      const { student: updatedStudent } = recordExamCompletion({
+        examId: activeExam.id,
+        examTitle: activeExam.levelTitle,
+        category: activeExam.category,
+        unitId: activeExam.unitId,
+        score: totalAchieved,
+        maxMarks: totalPossible,
+        percentage: calculatedPercentage,
       });
+      setStudent(updatedStudent);
+
+      // Background sync to verified cloud webhook (or retain in offline queue)
+      const syncPayload: CloudSyncPayload = {
+        studentId: updatedStudent.id,
+        studentName: updatedStudent.name,
+        school: updatedStudent.school,
+        grade: updatedStudent.grade,
+        group: updatedStudent.group,
+        examId: activeExam.id,
+        examTitle: activeExam.levelTitle,
+        category: activeExam.category,
+        score: totalAchieved,
+        maxMarks: totalPossible,
+        percentage: calculatedPercentage,
+        timestamp: new Date().toISOString(),
+        platform: isPackagedMobileEnvironment() ? 'android-capacitor' : 'web-pwa',
+      };
+      syncExamResultToCloud(syncPayload);
+
+      setExamState('result');
+    } finally {
+      isSubmittingExamRef.current = false;
     }
-
-    // Record exam completion in persistent student history & award points
-    const { student: updatedStudent } = recordExamCompletion({
-      examId: activeExam.id,
-      examTitle: activeExam.levelTitle,
-      category: activeExam.category,
-      unitId: activeExam.unitId,
-      score: totalAchieved,
-      maxMarks: totalPossible,
-      percentage: calculatedPercentage,
-    });
-    setStudent(updatedStudent);
-
-    // Silent background sync to Google Sheets
-    const syncPayload: CloudSyncPayload = {
-      studentId: updatedStudent.id,
-      studentName: updatedStudent.name,
-      school: updatedStudent.school,
-      grade: updatedStudent.grade,
-      group: updatedStudent.group,
-      examId: activeExam.id,
-      examTitle: activeExam.levelTitle,
-      category: activeExam.category,
-      score: totalAchieved,
-      maxMarks: totalPossible,
-      percentage: calculatedPercentage,
-      timestamp: new Date().toISOString(),
-      platform: 'web-pwa',
-    };
-    syncExamResultToCloud(syncPayload);
-
-    setExamState('result');
   };
 
   const handleSpeakText = (text: string) => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'en-US';
-      utterance.rate = 0.95;
-      window.speechSynthesis.speak(utterance);
+    speakText(text, 'en', { rate: 0.95 });
+  };
+
+  const handleSafePrintExam = () => {
+    if (!isPackagedMobileEnvironment() && typeof window !== 'undefined' && typeof window.print === 'function') {
+      window.print();
+      return;
+    }
+    if (activeExam) {
+      setCertificateData({
+        studentName: student?.name || studentName || 'Student Name',
+        studentSchool: student?.school || 'Secondary School',
+        studentGrade: student?.grade || '1st Secondary',
+        examTitle: activeExam.levelTitle,
+        score: totalEarned,
+        maxMarks: totalMax || 30,
+        percentage: percentage,
+        dateStr: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+      });
+      setShowCertificateModal(true);
     }
   };
 
   // Dedicated Lesson Viewer Modal for Exams study
   const [examStudyUnit, setExamStudyUnit] = useState<UnitCurriculum | null>(null);
+
+  // Initialize unified Browser History + Android Hardware Back Button lifecycle
+  useEffect(() => {
+    initGlobalBackNavigationListener();
+  }, []);
+
+  useEffect(() => {
+    const activeModalName = showSubmitConfirmModal
+      ? 'submit_confirm'
+      : showExitExamConfirmModal
+      ? 'exit_exam_confirm'
+      : examStudyUnit
+      ? 'lesson_viewer'
+      : showCertificateModal
+      ? 'certificate'
+      : showShareModal
+      ? 'share'
+      : showRegistrationModal
+      ? 'registration'
+      : showInstallModal
+      ? 'install'
+      : null;
+
+    syncNavigationStateToHistory({
+      tab: currentAppTab,
+      hasModalOpen: Boolean(activeModalName),
+      modalId: activeModalName || undefined,
+      examState,
+    });
+  }, [
+    currentAppTab,
+    examState,
+    examStudyUnit,
+    showSubmitConfirmModal,
+    showExitExamConfirmModal,
+    showCertificateModal,
+    showShareModal,
+    showRegistrationModal,
+    showInstallModal,
+  ]);
+
+  useEffect(() => {
+    const unregister = registerBackNavigationHandler('app-root-navigation', () => {
+      if (showSubmitConfirmModal) {
+        setShowSubmitConfirmModal(false);
+        return true;
+      }
+      if (showExitExamConfirmModal) {
+        setShowExitExamConfirmModal(false);
+        return true;
+      }
+      if (showCertificateModal) {
+        setShowCertificateModal(false);
+        return true;
+      }
+      if (showShareModal) {
+        setShowShareModal(false);
+        return true;
+      }
+      if (showInstallModal) {
+        setShowInstallModal(false);
+        return true;
+      }
+      if (showRegistrationModal) {
+        setShowRegistrationModal(false);
+        setPendingExam(null);
+        return true;
+      }
+      if (examStudyUnit) {
+        stopSpeaking();
+        setExamStudyUnit(null);
+        return true;
+      }
+      if (examState === 'taking') {
+        setShowExitExamConfirmModal(true);
+        return true;
+      }
+      if (examState === 'result' || examState === 'review') {
+        stopSpeaking();
+        setExamState('lobby');
+        setIsPrintMode(false);
+        return true;
+      }
+      if (currentAppTab !== 'home') {
+        stopSpeaking();
+        setLaunchedGame(null);
+        setCurrentAppTab('home');
+        return true;
+      }
+      return false;
+    });
+    return unregister;
+  }, [
+    showSubmitConfirmModal,
+    showExitExamConfirmModal,
+    showCertificateModal,
+    showShareModal,
+    showInstallModal,
+    showRegistrationModal,
+    examStudyUnit,
+    examState,
+    currentAppTab,
+  ]);
 
   // Active units for current selected grade and educational pathway (Dynamic Data Binding)
   const activeExamUnits = getExamsUnits(examGrade, examSecondaryPath);
@@ -566,7 +765,8 @@ export default function App() {
             setLaunchedGame(null);
           }}
           onOpenProfile={() => setCurrentAppTab('profile')}
-          onOpenLeaderboard={() => setCurrentAppTab('profile')}
+          onOpenLeaderboard={() => setCurrentAppTab('leaderboard')}
+          onOpenExams={() => setCurrentAppTab('exams')}
         />
       ) : (
         <Header
@@ -574,16 +774,28 @@ export default function App() {
           studentName={studentName}
           currentTab={currentAppTab}
           onLogoClick={() => {
+            if (examState === 'taking') {
+              setShowExitExamConfirmModal(true);
+              return;
+            }
             setCurrentAppTab('home');
             setExamState('lobby');
             setIsPrintMode(false);
           }}
           onNavigateTab={(tab) => {
+            if (examState === 'taking') {
+              setShowExitExamConfirmModal(true);
+              return;
+            }
             setCurrentAppTab(tab);
             setExamState('lobby');
             setIsPrintMode(false);
           }}
           onStartNow={() => {
+            if (examState === 'taking') {
+              setShowExitExamConfirmModal(true);
+              return;
+            }
             setCurrentAppTab('curricula');
             setExamState('lobby');
             setIsPrintMode(false);
@@ -593,9 +805,12 @@ export default function App() {
             if (el) el.scrollIntoView({ behavior: 'smooth' });
           }}
           onOpenProfile={() => {
+            if (examState === 'taking') {
+              setShowExitExamConfirmModal(true);
+              return;
+            }
             setCurrentAppTab('profile');
           }}
-          onOpenSettings={() => setShowSettingsModal(true)}
         />
       )}
 
@@ -652,6 +867,7 @@ export default function App() {
                 onSelectStage={setCurriculumStage}
                 onSelectGrade={setCurriculumGrade}
                 onOpenUnit={(unit) => setExamStudyUnit(unit)}
+                onOpenExamsHub={() => setCurrentAppTab('exams')}
                 onStateUpdated={() => {
                   setStudent(getStoredStudent());
                   setHeaderRefreshTick((t) => t + 1);
@@ -1599,11 +1815,8 @@ export default function App() {
                 </div>
 
                 <button
-                  onClick={() => {
-                    if (window.confirm('Are you sure you want to finish and submit your exam for evaluation?')) {
-                      handleSubmitExam();
-                    }
-                  }}
+                  type="button"
+                  onClick={() => setShowSubmitConfirmModal(true)}
                   className="px-4 py-2 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-sm cursor-pointer"
                 >
                   Submit Exam
@@ -1986,11 +2199,18 @@ export default function App() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-700 block">
-                    3. Candidate Oral / Written Defense Draft:
-                  </label>
+                  <div className="flex items-center justify-between text-xs">
+                    <label className="font-bold text-slate-700 block">
+                      3. Candidate Oral / Written Defense Draft:
+                    </label>
+                    <span className="font-mono text-purple-800">
+                      {researchAnswer.trim().split(/\s+/).filter(Boolean).length} words
+                    </span>
+                  </div>
                   <textarea
                     rows={6}
+                    value={researchAnswer}
+                    onChange={(e) => setResearchAnswer(e.target.value)}
                     placeholder="Draft your scholarly thesis statement, integrate the empirical citation, and defend your argument in elevated academic register..."
                     className="w-full p-4 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-purple-900 text-sm leading-relaxed"
                   />
@@ -2022,11 +2242,11 @@ export default function App() {
                   else if ((activeSectionTab === 'translation' || activeSectionTab === 'reading' || activeSectionTab === 'mcq') && activeExam.storyQuestions) setActiveSectionTab('story');
                   else if (activeSectionTab === 'story' && activeExam.writingTask) setActiveSectionTab('writing');
                   else if (activeSectionTab === 'writing' && activeExam.academicResearchTask) setActiveSectionTab('research');
-                  else handleSubmitExam();
+                  else setShowSubmitConfirmModal(true);
                 }}
                 className="px-5 py-2 text-xs font-bold rounded-lg bg-blue-900 hover:bg-blue-800 text-white flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
               >
-                <span>{activeSectionTab === 'writing' && !activeExam.academicResearchTask || activeSectionTab === 'research' ? 'Review & Submit' : 'Next Section'}</span>
+                <span>{(activeSectionTab === 'writing' && !activeExam.academicResearchTask) || activeSectionTab === 'research' ? 'Review & Submit' : 'Next Section'}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -2126,6 +2346,15 @@ export default function App() {
                     <span className="text-xl font-bold text-slate-900 font-mono">{essayEvaluation.totalScore} / 14</span>
                   </div>
                 )}
+
+                {researchEvaluation && (
+                  <div className="p-4 bg-purple-50 rounded-xl border border-purple-200 text-center">
+                    <span className="text-xs text-purple-700 block">Capstone Research</span>
+                    <span className="text-xl font-bold text-purple-950 font-mono">
+                      {researchEvaluation.score} / {researchEvaluation.maxScore}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
@@ -2208,15 +2437,15 @@ export default function App() {
 
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => window.print()}
-                  className="px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                  onClick={handleSafePrintExam}
+                  className="px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Printer className="w-4 h-4" />
-                  <span>Print Paper</span>
+                  <span>Print / Export Paper</span>
                 </button>
                 <button
                   onClick={() => { setExamState('lobby'); setIsPrintMode(false); }}
-                  className="px-3.5 py-2 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5"
+                  className="px-3.5 py-2 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   <span>Exit Review</span>
@@ -2433,6 +2662,20 @@ export default function App() {
                       "{activeExam.academicResearchTask.evidenceData}"
                     </p>
                   </div>
+                  {researchAnswer && (
+                    <div className="p-3.5 bg-purple-50/40 border border-purple-200 rounded-lg text-xs text-slate-800">
+                      <span className="font-bold block text-purple-950 mb-1">Your Submitted Defense:</span>
+                      <p className="whitespace-pre-line font-serif">{researchAnswer}</p>
+                    </div>
+                  )}
+                  {researchEvaluation && (
+                    <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-lg text-xs text-emerald-950 space-y-1">
+                      <span className="font-bold block">
+                        Research Defense Score: {researchEvaluation.score} / {researchEvaluation.maxScore}
+                      </span>
+                      <p dir="rtl">{researchEvaluation.feedback}</p>
+                    </div>
+                  )}
                   <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1.5">
                     <span className="font-bold text-slate-900 block">Collegiate Model Defense:</span>
                     <p className="leading-relaxed font-serif text-slate-800 whitespace-pre-line">
@@ -2447,67 +2690,112 @@ export default function App() {
       </main>
     )}
 
-      {/* GEMINI API SETTINGS MODAL */}
-      {showSettingsModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl border border-slate-200">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <Key className="w-5 h-5 text-blue-900" />
-                <h3 className="font-bold text-base text-slate-900">Gemini AI Key Setup</h3>
+      {/* IN-APP SUBMIT EXAM CONFIRMATION MODAL (Replaces blocking window.confirm) */}
+      {showSubmitConfirmModal && activeExam && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="submit-exam-modal-title"
+        >
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200" dir="rtl">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-6 h-6" />
               </div>
-              <button
-                onClick={() => setShowSettingsModal(false)}
-                className="text-slate-400 hover:text-slate-600 text-lg font-bold"
-              >
-                ✕
-              </button>
+              <div>
+                <h3 id="submit-exam-modal-title" className="font-black text-base text-slate-900">
+                  تأكيد تسليم الامتحان للتصحيح
+                </h3>
+                <p className="text-xs text-slate-500 font-semibold">
+                  {activeExam.levelTitle}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-1.5">
+              <div>
+                • الأسئلة الاختيارية المجابة:{' '}
+                <strong className="text-blue-900">{Object.keys(mcqAnswers).length}</strong> من{' '}
+                <strong>
+                  {activeExam.mcqs.length + (activeExam.reading?.questions?.length || 0)}
+                </strong>
+              </div>
+              {activeExam.writingTask && (
+                <div>
+                  • المقال المكتوب:{' '}
+                  <strong className="text-blue-900">
+                    {essayAnswer.trim().split(/\s+/).filter(Boolean).length} كلمة
+                  </strong>
+                </div>
+              )}
+              {activeExam.academicResearchTask && (
+                <div>
+                  • المرافعة البحثية:{' '}
+                  <strong className="text-purple-900">
+                    {researchAnswer.trim().split(/\s+/).filter(Boolean).length} كلمة
+                  </strong>
+                </div>
+              )}
             </div>
 
             <p className="text-xs text-slate-600 leading-relaxed">
-              قم بإدخال مفتاح <strong>Google Gemini API Key</strong> لتفعيل التصحيح الآلي الفوري للمقالات وأسئلة القصة
-              باستخدام أحدث معايير التقييم الوزارية المصرية. يتم حفظ المفتاح محلياً في متصفحك بأمان.
+              هل أنت متأكد من رغبتك في إنهاء الامتحان الآن وإرساله للتصحيح الفوري؟
             </p>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-700">Gemini API Key:</label>
-              <input
-                type="password"
-                value={apiKeyInput}
-                onChange={(e) => setApiKeyInput(e.target.value)}
-                placeholder="AIzaSy..."
-                className="w-full p-2.5 text-xs rounded-lg border border-slate-300 font-mono focus:outline-none focus:ring-2 focus:ring-blue-900"
-              />
-            </div>
-
-            <div className="p-3 bg-slate-50 rounded-lg text-xs text-slate-500 space-y-1">
-              <div>💡 <strong>Note:</strong> إذا لم تقم بإدخال مفتاح API، سيعمل النظام تلقائياً عبر محرك التقييم المعياري المدمج (Built-in Rule Rubric Engine) دون أي انقطاع.</div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
+            <div className="flex items-center justify-end gap-2.5 pt-2">
               <button
-                onClick={() => {
-                  setStoredApiKey('');
-                  setApiKeyInput('');
-                  setHasApiKey(false);
-                  setShowSettingsModal(false);
-                }}
-                className="px-3 py-1.5 text-xs text-slate-600 hover:text-slate-900"
+                type="button"
+                onClick={() => setShowSubmitConfirmModal(false)}
+                className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-bold cursor-pointer"
               >
-                Clear Key
+                مراجعة الإجابات أولاً
               </button>
-
               <button
-                onClick={() => {
-                  if (apiKeyInput.trim()) {
-                    setStoredApiKey(apiKeyInput.trim());
-                    setHasApiKey(true);
-                  }
-                  setShowSettingsModal(false);
-                }}
-                className="px-4 py-2 text-xs font-bold rounded-lg bg-blue-900 hover:bg-blue-800 text-white transition-colors"
+                type="button"
+                onClick={() => handleSubmitExam()}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-sm cursor-pointer"
               >
-                Save & Activate
+                تأكيد التسليم والتصحيح ✅
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* IN-APP EXIT ACTIVE EXAM CONFIRMATION MODAL (Prevents accidental Android Back loss) */}
+      {showExitExamConfirmModal && activeExam && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="exit-exam-modal-title"
+        >
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200" dir="rtl">
+            <h3 id="exit-exam-modal-title" className="font-black text-base text-slate-900">
+              تنبيه: الامتحان قيد التنفيذ حالياً
+            </h3>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              إذا غادرت صفحة الامتحان الآن قبل التسليم، سيتم إلغاء المحاولة الحالية. هل تود متابعة الحل أم الخروج؟
+            </p>
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowExitExamConfirmModal(false)}
+                className="px-4 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white text-xs font-black cursor-pointer"
+              >
+                متابعة الامتحان
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExitExamConfirmModal(false);
+                  stopSpeaking();
+                  setExamState('lobby');
+                }}
+                className="px-4 py-2.5 rounded-xl border border-red-300 text-red-700 hover:bg-red-50 text-xs font-bold cursor-pointer"
+              >
+                خروج وإلغاء المحاولة
               </button>
             </div>
           </div>

@@ -103,6 +103,178 @@ function createStandardUnit(
 
   const unitIdPrefix = `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}`;
 
+  const v2Q = isPresentPerfect
+    ? 'Living in a new country requires patience to __________ to unfamiliar customs and daily routines.'
+    : isPassive
+    ? 'Investigative journalists must never __________ sensational rumors without verifying their sources.'
+    : isModalDeduction
+    ? 'Spacecraft engineers __________ telemetry instruments carefully before launching an orbital mission.'
+    : 'In Great Expectations, Pip’s sudden fortune __________ his perspective on social class in London.';
+
+  const v2Opts: [string, string, string, string] = isPresentPerfect
+    ? ['ignore', 'adapt', 'refuse', 'abandon']
+    : isPassive
+    ? ['verify', 'publish', 'correct', 'archive']
+    : isModalDeduction
+    ? ['damage', 'calibrate', 'misplace', 'forget']
+    : ['stabilized', 'transformed', 'simplified', 'ignored'];
+
+  const v4Q = isPresentPerfect
+    ? 'Scholars who maintain their values while engaging with foreign cultures show remarkable:'
+    : isPassive
+    ? 'A news report that presents all sides of an issue fairly without personal bias is called:'
+    : isModalDeduction
+    ? 'Inside an orbiting space station, objects float freely because of microgravity and:'
+    : 'Joe Gargery’s unconditional kindness toward Pip demonstrates true moral:';
+
+  const v4Opts: [string, string, string, string] = isPresentPerfect
+    ? ['isolation', 'hesitation', 'negligence', 'resilience']
+    : isPassive
+    ? ['sensational', 'misleading', 'biased', 'objective']
+    : isModalDeduction
+    ? ['turbulence', 'friction', 'altitude', 'weightlessness']
+    : ['arrogance', 'greed', 'deception', 'integrity'];
+
+  const g3Q = isPresentPerfect
+    ? 'The Egyptian researchers __________ on the renewable energy project since last October, and they are still testing prototypes.'
+    : isPassive
+    ? 'By the time the evening newspaper went to print, all eyewitness statements __________ by the legal team.'
+    : isModalDeduction
+    ? 'The satellite signal disappeared suddenly; the solar array __________ been damaged by micrometeoroids.'
+    : 'Mr. Jaggers had his clerk __________ the confidential legal deeds before Pip arrived at the office.';
+
+  const g3Opts: [string, string, string, string] = isPresentPerfect
+    ? ['worked', 'had worked', 'have been working', 'are worked']
+    : isPassive
+    ? ['have reviewed', 'were reviewing', 'had been reviewed', 'are reviewing']
+    : isModalDeduction
+    ? ['can’t', 'shouldn’t', 'might have', 'needn’t have']
+    : ['prepared', 'preparing', 'prepare', 'to preparing'];
+
+  const g4Q = isPresentPerfect
+    ? 'This is the third international fellowship that Dr. Kareem __________ for this academic year.'
+    : isPassive
+    ? 'Breaking news updates __________ to millions of subscribers while the press conference is taking place.'
+    : isModalDeduction
+    ? 'The mission commander __________ forgotten the launch protocol; she rehearsed every step a hundred times.'
+    : 'Before the wedding banquet was cancelled, Miss Havisham had the grand cake __________ by the finest bakery.';
+
+  const g4Opts: [string, string, string, string] = isPresentPerfect
+    ? ['is applying', 'was applied', 'had applied', 'has applied']
+    : isPassive
+    ? ['broadcast', 'have broadcast', 'were broadcasting', 'are being broadcast']
+    : isModalDeduction
+    ? ['must have', 'should have', 'may have', 'couldn’t have']
+    : ['deliver', 'delivering', 'to deliver', 'delivered'];
+
+  const r4Q = isPresentPerfect
+    ? 'What is the main message of the passage regarding Egyptian scholars studying abroad?'
+    : isPassive
+    ? 'Why is independent source verification essential in modern journalism?'
+    : isModalDeduction
+    ? 'How do ground control engineers support astronauts during long-duration orbital missions?'
+    : 'How does Charles Dickens contrast Joe Gargery with superficial London society?';
+
+  const r4Opts: [string, string, string, string] = isPresentPerfect
+    ? [
+        'Expatriates should avoid all contact with local universities',
+        'Living abroad permanently erases one’s native culture',
+        'Culture shock prevents scholars from completing research',
+        'Positive engagement combined with cultural pride turns scholars into cultural ambassadors'
+      ]
+    : isPassive
+    ? [
+        'It delays news broadcasts for several weeks',
+        'It replaces factual reporting with entertainment',
+        'It reduces the need for professional editors',
+        'It protects citizens from misinformation and builds lasting public trust'
+      ]
+    : isModalDeduction
+    ? [
+        'By turning off communications during orbital flights',
+        'By eliminating the need for astronaut training',
+        'By increasing gravity inside the spacecraft cabin',
+        'By continuously tracking telemetry data to keep life-support systems safe'
+      ]
+    : [
+        'By portraying Joe as wealthy and arrogant',
+        'By showing that London society values humility over money',
+        'By claiming that social status is more important than family',
+        'By showing that authentic nobility stems from loyalty and gratitude rather than wealth'
+      ];
+
+  const l3Q = isPresentPerfect
+    ? 'In the listening dialogue, what example does Salma give to distinguish Present Perfect Continuous from Present Perfect Simple?'
+    : isPassive
+    ? 'In the audio discussion, why does Mr. Hazem emphasize passive verbs in news headlines?'
+    : isModalDeduction
+    ? 'According to the audio lesson, when do we use "must have + past participle"?'
+    : 'In the literature discussion, how does Salma distinguish passive causatives from active causatives?';
+
+  const l3Opts: [string, string, string, string] = isPresentPerfect
+    ? [
+        'Comparing future predictions with imperative commands',
+        'Listing irregular plural nouns in primary grades',
+        'Contrasting ongoing duration ("has been researching") with completed quantity ("has published three papers")',
+        'Replacing all verbs with passive adjectives'
+      ]
+    : isPassive
+    ? [
+        'To hide the main topic of the news article',
+        'To avoid using punctuation marks',
+        'To focus attention on the verified action or event when the agent is unknown or institutional',
+        'To make sentences longer than necessary'
+      ]
+    : isModalDeduction
+    ? [
+        'When giving advice about future exams',
+        'When asking for permission in the classroom',
+        'When expressing a strong logical certainty about a past event based on clear evidence',
+        'When describing a habitual daily routine'
+      ]
+    : [
+        'By using past simple verbs only',
+        'By omitting the object from every sentence',
+        'By checking whether the object receives the action (past participle) or performs it (infinitive / to-infinitive)',
+        'By changing all nouns into adverbs'
+      ];
+
+  const l4Q = isPresentPerfect
+    ? 'What assignment does Mr. Hazem ask Salma to complete for Unit 7 (Living and Working Abroad)?'
+    : isPassive
+    ? 'What media analysis task does Salma agree to prepare after the Unit 8 lesson?'
+    : isModalDeduction
+    ? 'Which aerospace case study will Salma summarize using past modal deductions?'
+    : 'Which character’s moral transformation in Great Expectations will Salma write an essay about?';
+
+  const l4Opts: [string, string, string, string] = isPresentPerfect
+    ? [
+        'Draw a map of primary school classrooms',
+        'Copy a list of French verbs',
+        'Memorize a recipe for traditional bread',
+        'Write a paragraph about an Egyptian scientist abroad using Present Perfect Simple and Continuous'
+      ]
+    : isPassive
+    ? [
+        'Write a fictional fairy tale for children',
+        'Cancel her subscription to the school magazine',
+        'Translate a math textbook into Spanish',
+        'Rewrite five active news reports into accurate passive journalistic broadcasts'
+      ]
+    : isModalDeduction
+    ? [
+        'A history of ancient sailing boats',
+        'A guide to planting desert trees',
+        'A schedule of local train departures',
+        'An analysis of how engineers diagnosed an orbital satellite anomaly using telemetry evidence'
+      ]
+    : [
+        'Oliver Twist’s arrival at the workhouse',
+        'Robinson Crusoe’s island survival diary',
+        'King Lear’s division of his kingdom',
+        'Pip’s realization of Joe Gargery’s loyalty and the true meaning of being a gentleman'
+      ];
+
   const vocabExercises = [
     {
       id: `${unitIdPrefix}_v1`,
@@ -116,10 +288,10 @@ function createStandardUnit(
     {
       id: `${unitIdPrefix}_v2`,
       skill: 'Vocabulary' as const,
-      question: `Complete the sentence: "Dedicated researchers work consistently to __________ steady progress."`,
-      options: ['break', 'make', 'lose', 'drop'] as [string, string, string, string],
+      question: v2Q,
+      options: v2Opts,
       correctAnswer: 'B' as const,
-      explanation: 'The standard academic collocation is "make steady progress".',
+      explanation: `"${v2Opts[1]}" is the contextually accurate vocabulary choice for ${unitTitle}.`,
       verificationStatus: 'corrected_pending_verification' as const
     },
     {
@@ -134,10 +306,10 @@ function createStandardUnit(
     {
       id: `${unitIdPrefix}_v4`,
       skill: 'Vocabulary' as const,
-      question: `A person who shows perseverance, care, and conscientious effort in their work is described as:`,
-      options: ['apathetic', 'negligent', 'reckless', 'diligent'] as [string, string, string, string],
+      question: v4Q,
+      options: v4Opts,
       correctAnswer: 'D' as const,
-      explanation: '"Diligent" means having or showing care and conscientiousness in one’s work or duties.',
+      explanation: `"${v4Opts[3]}" accurately completes the academic meaning in ${unitTitle}.`,
       verificationStatus: 'corrected_pending_verification' as const
     }
   ];
@@ -164,19 +336,19 @@ function createStandardUnit(
     {
       id: `${unitIdPrefix}_g3`,
       skill: 'Grammar' as const,
-      question: `Choose the grammatically accurate sentence: "Hardly had the conference started __________ the keynote speaker took the stage."`,
-      options: ['than', 'where', 'when', 'then'] as [string, string, string, string],
+      question: g3Q,
+      options: g3Opts,
       correctAnswer: 'C' as const,
-      explanation: 'The correlative inversion structure is "Hardly had + subject + P.P. ... when + Past Simple".',
+      explanation: `"${g3Opts[2]}" correctly applies ${ruleName}.`,
       verificationStatus: 'corrected_pending_verification' as const
     },
     {
       id: `${unitIdPrefix}_g4`,
       skill: 'Grammar' as const,
-      question: `Complete the sentence: "Neither the editor nor the journalists __________ aware of the sudden schedule change yesterday."`,
-      options: ['is', 'has been', 'was', 'were'] as [string, string, string, string],
+      question: g4Q,
+      options: g4Opts,
       correctAnswer: 'D' as const,
-      explanation: 'With "Neither ... nor ...", the verb agrees with the closer subject ("the journalists" -> plural past "were").',
+      explanation: `"${g4Opts[3]}" is the grammatically accurate structure for ${ruleName}.`,
       verificationStatus: 'corrected_pending_verification' as const
     }
   ];
@@ -212,10 +384,10 @@ function createStandardUnit(
     {
       id: `${unitIdPrefix}_r4`,
       skill: 'Reading' as const,
-      question: `What is the writer’s overall tone in this passage?`,
-      options: ['Sarcastic and dismissive', 'Hostile and angry', 'Confused and uncertain', 'Informative, analytical, and objective'] as [string, string, string, string],
+      question: r4Q,
+      options: r4Opts,
       correctAnswer: 'D' as const,
-      explanation: 'The writer presents clear, analytical observations in an objective academic tone.',
+      explanation: `Synthesizes the central argument of the passage on ${unitTitle}.`,
       verificationStatus: 'corrected_pending_verification' as const
     }
   ];
@@ -224,7 +396,7 @@ function createStandardUnit(
     {
       id: `${unitIdPrefix}_l1`,
       skill: 'Listening' as const,
-      question: `In the audio dialogue, what topic are Mr. Hazem and Salma discussing?`,
+      question: `In the Unit ${unitNumber} ("${unitTitle}") audio dialogue, what main topic are Mr. Hazem and Salma discussing?`,
       options: [
         `${unitTitle} (${theme})`,
         `Booking a summer holiday in Spain`,
@@ -238,7 +410,7 @@ function createStandardUnit(
     {
       id: `${unitIdPrefix}_l2`,
       skill: 'Listening' as const,
-      question: `Which grammatical structure does Mr. Hazem remind Salma to apply carefully?`,
+      question: `During the review of "${unitTitle}", which grammatical structure does Mr. Hazem remind Salma to apply carefully?`,
       options: [
         `Primary school alphabet phonics`,
         `${ruleName}`,
@@ -252,29 +424,19 @@ function createStandardUnit(
     {
       id: `${unitIdPrefix}_l3`,
       skill: 'Listening' as const,
-      question: `How does Salma connect the unit’s vocabulary ("${keyWordsList[0]?.word}" and "${keyWordsList[1]?.word}") to her learning?`,
-      options: [
-        `She ignores the words completely`,
-        `She only memorizes their spelling backwards`,
-        `She applies them to real-world situations in Egypt`,
-        `She translates them into French`
-      ] as [string, string, string, string],
+      question: l3Q,
+      options: l3Opts,
       correctAnswer: 'C' as const,
-      explanation: 'Salma notes that the unit connects classroom learning directly to real-world situations.',
+      explanation: `Explains how ${ruleName} is applied in ${unitTitle}.`,
       verificationStatus: 'corrected_pending_verification' as const
     },
     {
       id: `${unitIdPrefix}_l4`,
       skill: 'Listening' as const,
-      question: `What does Salma plan to do after the discussion with her teacher?`,
-      options: [
-        `Skip the upcoming unit test`,
-        `Leave her workbook blank`,
-        `Stop attending English classes`,
-        `Practice the vocabulary and grammar exercises thoroughly`
-      ] as [string, string, string, string],
+      question: l4Q,
+      options: l4Opts,
       correctAnswer: 'D' as const,
-      explanation: 'Salma says she will practice the drills thoroughly.',
+      explanation: `Describes Salma's follow-up task for ${unitTitle}.`,
       verificationStatus: 'corrected_pending_verification' as const
     }
   ];

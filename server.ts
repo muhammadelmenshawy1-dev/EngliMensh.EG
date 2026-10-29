@@ -1,5 +1,5 @@
 // =========================================================================
-// EngliMensh.EG - Full-Stack Express Server with Server-Side Video & Translation Proxy
+// EngliMensh.EG - Full-Stack Express Server with Server-Side AI Grading & Translation Proxy
 // System Architect: Mohammad El-Menshawy (محمد المنشاوي)
 // Port 3000 & Vite Middleware Integration
 // =========================================================================
@@ -20,7 +20,51 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const isProd = process.env.NODE_ENV === 'production';
 
-app.use(express.json());
+app.use(express.json({ limit: '64kb' }));
+
+// CORS & Security Headers for Web + Capacitor Android Clients
+const allowedOriginEnv = (process.env.ALLOWED_ORIGIN || '').trim();
+app.use('/api', (req, res, next) => {
+  const requestOrigin = req.headers.origin || '';
+  const isAllowedCapacitorOrigin =
+    requestOrigin === 'https://localhost' ||
+    requestOrigin === 'capacitor://localhost' ||
+    requestOrigin === 'http://localhost' ||
+    requestOrigin.startsWith('http://localhost:');
+
+  if (allowedOriginEnv && requestOrigin === allowedOriginEnv) {
+    res.setHeader('Access-Control-Allow-Origin', requestOrigin);
+  } else if (isAllowedCapacitorOrigin || !isProd) {
+    res.setHeader('Access-Control-Allow-Origin', requestOrigin || '*');
+  }
+
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  next();
+});
+
+// Simple per-IP sliding window rate limiter for AI endpoints
+const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 40;
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+    rateLimitMap.set(ip, { count: 1, windowStart: now });
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT_MAX_REQUESTS) {
+    return false;
+  }
+  entry.count += 1;
+  return true;
+}
 
 // Initialize GoogleGenAI server-side with protected environment variable
 const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || '';
@@ -35,86 +79,294 @@ const ai = geminiApiKey
     })
   : null;
 
-// -------------------------------------------------------------------------
-// API ROUTES: Video Generation, Capabilities & Translation
-// -------------------------------------------------------------------------
+const createTimeoutPromise = (ms: number, message: string) =>
+  new Promise<never>((_, reject) => setTimeout(() => reject(new Error(message)), ms));
 
-// 1. Provider Status Endpoint
-app.get('/api/video/provider-status', async (_req, res) => {
+async function generateJsonWithFallback(prompt: string, primaryTimeoutMs = 8000, fallbackTimeoutMs = 6500): Promise<any> {
   if (!geminiApiKey || !ai) {
-    return res.json({
-      providerName: 'Google Gemini / Veo Video API',
-      modelIdentifier: 'gemini-omni-flash-preview',
-      isAvailable: false,
-      statusMessage: 'No GEMINI_API_KEY configured on server.',
-      quotaLimitationNotice: 'Please configure GEMINI_API_KEY in server environment.',
-      estimatedCostPerSecondUsd: 0.02
-    });
+    throw new Error('GEMINI_API_KEY environment variable is not configured on the server.');
   }
 
+  const callModel = async (modelName: string) =>
+    ai.models.generateContent({
+      model: modelName,
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        temperature: 0.2,
+      },
+    });
+
+  let response: any;
   try {
-    return res.json({
-      providerName: 'Google Gemini / Veo Video API',
-      modelIdentifier: 'models/gemini-omni-flash-preview',
-      isAvailable: false,
-      statusMessage: 'Gemini Omni/Veo Video Generation requires a Paid Cloud Tier (Free Tier limit: 0). The verified pre-rendered high-definition cartoon video is active.',
-      quotaLimitationNotice: 'Notice: Google AI Studio Free Tier has a quota limit of 0 for video models. Real pre-rendered MP4 video is published and active for Primary 1 Unit 1.',
-      estimatedCostPerSecondUsd: 0.02
-    });
-  } catch (err: any) {
-    return res.json({
-      providerName: 'Google Gemini / Veo Video API',
-      modelIdentifier: 'models/gemini-omni-flash-preview',
-      isAvailable: false,
-      statusMessage: `Provider error: ${err.message}`,
-      estimatedCostPerSecondUsd: 0.02
-    });
-  }
-});
-
-// 2. Submit Video Generation Endpoint
-app.post('/api/video/generate', async (req, res) => {
-  const { teacherEmail, unitId, scenes, jobId } = req.body;
-
-  if (!teacherEmail || teacherEmail.trim().toLowerCase() !== 'muhammadelmenshawy1@gmail.com') {
-    return res.status(403).json({
-      success: false,
-      error: 'Forbidden: Video generation is restricted to Mr. Mohammad El-Menshawy (MuhammadElMenshawy1@gmail.com).'
-    });
+    response = await Promise.race([
+      callModel('gemini-3.8-flash'),
+      createTimeoutPromise(primaryTimeoutMs, 'Primary Gemini model timed out'),
+    ]);
+  } catch (primaryErr: any) {
+    try {
+      response = await Promise.race([
+        callModel('gemini-3.1-flash-lite'),
+        createTimeoutPromise(fallbackTimeoutMs, 'Fallback Gemini model timed out'),
+      ]);
+    } catch (fallbackErr: any) {
+      throw new Error(fallbackErr.message || primaryErr.message || 'Gemini model request failed');
+    }
   }
 
-  const job = {
-    jobId: jobId || `job_${Date.now()}`,
-    lessonId: unitId,
-    provider: 'gemini_omni_veo',
-    model: 'gemini-omni-flash-preview',
-    status: 'completed',
-    progressPercentage: 100,
-    estimatedCostUsd: 0.15,
-    actualCostUsd: 0.15,
-    createdAt: new Date().toISOString(),
-    completedAt: new Date().toISOString()
-  };
+  const outputText = (response?.text || '').trim();
+  if (!outputText) {
+    throw new Error('Received empty response from Gemini model');
+  }
+  const cleanJson = outputText.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+  return JSON.parse(cleanJson);
+}
 
+// -------------------------------------------------------------------------
+// API ROUTES: Health, Video Status, AI Grading & Translation
+// -------------------------------------------------------------------------
+
+// 0. Health Check Endpoint
+app.get('/api/health', (_req, res) => {
   return res.json({
-    success: true,
-    job,
-    message: 'Video generation request processed successfully.'
+    status: 'ok',
+    aiConfigured: Boolean(geminiApiKey && ai),
+    timestamp: new Date().toISOString(),
   });
 });
 
-// 3. Intelligent Bilingual & Egyptian Dialect Translation Endpoint
-app.post('/api/translate', async (req, res) => {
-  const { text, sourceLang, targetLang, style } = req.body;
+// 1. Provider Status Endpoint
+app.get('/api/video/provider-status', async (_req, res) => {
+  return res.json({
+    providerName: 'Google Gemini / Veo Video API',
+    modelIdentifier: 'models/gemini-omni-flash-preview',
+    isAvailable: false,
+    statusMessage:
+      'Live video synthesis is disabled until a verified paid Gemini Omni/Veo pipeline is provisioned. Verified pre-rendered unit videos remain active.',
+    quotaLimitationNotice:
+      'Notice: Pre-rendered MP4 educational animations and interactive cartoon dialogues are active.',
+    estimatedCostPerSecondUsd: 0.02,
+  });
+});
 
-  if (!text || !text.trim()) {
-    return res.status(400).json({ error: 'Text input is required for translation.' });
+// 2. Submit Video Generation Endpoint (Honest Unconfigured Status — No Spoofable Email or Fake Completed Job)
+app.post('/api/video/generate', async (_req, res) => {
+  return res.status(503).json({
+    success: false,
+    isConfigured: false,
+    status: 'unconfigured',
+    error:
+      'خدمة التوليد المباشر للفيديو غير مفعلة في بيئة الخادم الحالية. الفيديوهات التعليمية المسجلة والمعتمدة متاحة للعرض مباشرة.',
+  });
+});
+
+// 3. Server-Side AI Grading Endpoint (Essay, Story/Literature, Baccalaureate Research)
+app.post('/api/grade', async (req, res) => {
+  const clientIp = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
+  if (!checkRateLimit(clientIp)) {
+    return res.status(429).json({
+      error: 'Too many grading requests. Please wait a moment and try again.',
+    });
+  }
+
+  const { type, topic, prompt, studentText, modelAnswer, chapter, question, criteria, maxMarks } = req.body || {};
+
+  if (!type || !['essay', 'story', 'research'].includes(type)) {
+    return res.status(400).json({ error: 'Invalid grading type. Expected essay, story, or research.' });
+  }
+
+  const cleanStudentText = String(studentText || '').trim();
+  if (!cleanStudentText || cleanStudentText.length < 3) {
+    return res.status(400).json({ error: 'Student submission text is empty or too short to grade.' });
+  }
+  if (cleanStudentText.length > 8000) {
+    return res.status(400).json({ error: 'Student submission exceeds maximum length (8000 characters).' });
   }
 
   if (!geminiApiKey || !ai) {
     return res.status(503).json({
       error: 'GEMINI_API_KEY environment variable is not configured on the server.',
-      requiresApiKey: true
+      requiresApiKey: true,
+    });
+  }
+
+  try {
+    if (type === 'essay') {
+      const gradingPrompt = `You are a Senior Assessment Examiner for the Egyptian Ministry of Education (MOE) evaluating Secondary English writing.
+Grade the student's submission strictly according to the official 14-mark Egyptian Ministerial Rubric:
+1. Ideas & Relevance (Max 4 marks): Clarity of thesis, depth of supporting arguments, relevance to prompt.
+2. Grammar & Vocabulary Range (Max 4 marks): Accuracy of tense, variety of clause structures, appropriate lexical choice.
+3. Organization & Cohesion (Max 3 marks): Proper paragraphing (Introduction, body paragraphs, conclusion), transitions.
+4. Mechanics & Spelling (Max 3 marks): Capitalization, punctuation, spelling accuracy.
+
+Topic: ${String(topic || '').slice(0, 300)}
+Task Prompt: ${String(prompt || '').slice(0, 800)}
+Student Submission:
+"""
+${cleanStudentText}
+"""
+Reference Benchmark / Model Answer:
+"""
+${String(modelAnswer || '').slice(0, 2000)}
+"""
+
+Respond strictly with valid JSON matching this schema:
+{
+  "ideasScore": number (0 to 4 in 0.5 increments),
+  "grammarVocabScore": number (0 to 4 in 0.5 increments),
+  "organizationScore": number (0 to 3 in 0.5 increments),
+  "mechanicsScore": number (0 to 3 in 0.5 increments),
+  "totalScore": number (0 to 14),
+  "maxScore": 14,
+  "feedback": "Constructive bilingual Arabic & English feedback detailing strengths and areas for improvement",
+  "correctedSentences": [
+    {
+      "original": "weak or incorrect sentence from student text",
+      "corrected": "corrected academic version",
+      "explanation": "concise grammatical or lexical explanation in Arabic & English"
+    }
+  ]
+}`;
+
+      const parsed = await generateJsonWithFallback(gradingPrompt, 8500, 7000);
+      const ideasScore = Math.min(4, Math.max(0, Number(parsed.ideasScore ?? 0)));
+      const grammarVocabScore = Math.min(4, Math.max(0, Number(parsed.grammarVocabScore ?? 0)));
+      const organizationScore = Math.min(3, Math.max(0, Number(parsed.organizationScore ?? 0)));
+      const mechanicsScore = Math.min(3, Math.max(0, Number(parsed.mechanicsScore ?? 0)));
+      const totalScore = Math.min(
+        14,
+        Math.max(0, Number((ideasScore + grammarVocabScore + organizationScore + mechanicsScore).toFixed(1)))
+      );
+
+      return res.json({
+        success: true,
+        evaluation: {
+          ideasScore,
+          grammarVocabScore,
+          organizationScore,
+          mechanicsScore,
+          totalScore,
+          maxScore: 14,
+          feedback: parsed.feedback || 'Good effort addressing the prompt.',
+          correctedSentences: Array.isArray(parsed.correctedSentences) ? parsed.correctedSentences : [],
+          modelAnswer: modelAnswer || parsed.modelAnswer || '',
+        },
+      });
+    }
+
+    if (type === 'story') {
+      const safeCriteria = Array.isArray(criteria) ? criteria.slice(0, 8).map((c) => String(c)) : [];
+      const gradingPrompt = `You are a Senior Egyptian MOE English Literature Examiner assessing open-ended critical thinking questions (Chapter ${Number(chapter) || 1}).
+Evaluate the student's answer on a 5-mark scale:
+- Critical Depth & Interpretation (2 marks)
+- Factual Alignment with Plot and Characters (2 marks)
+- Argument Clarity and Language (1 mark)
+
+Key Criteria:
+${safeCriteria.map((c) => `- ${c}`).join('\n')}
+
+Question: ${String(question || '').slice(0, 500)}
+Student's Response:
+"""
+${cleanStudentText}
+"""
+Ministry Model Benchmark:
+"""
+${String(modelAnswer || '').slice(0, 1500)}
+"""
+
+Respond strictly with valid JSON:
+{
+  "score": number (0 to 5 in 0.5 increments),
+  "maxScore": 5,
+  "criticalDepth": "High" | "Medium" | "Developing",
+  "factualAlignment": "Fully Aligned" | "Partially Aligned" | "Inaccurate",
+  "feedback": "Detailed bilingual critique in English and Arabic"
+}`;
+
+      const parsed = await generateJsonWithFallback(gradingPrompt, 8000, 6500);
+      const score = Math.min(5, Math.max(0, Number(parsed.score ?? 0)));
+
+      return res.json({
+        success: true,
+        evaluation: {
+          score,
+          maxScore: 5,
+          criticalDepth: parsed.criticalDepth || (score >= 4 ? 'High' : score >= 2.5 ? 'Medium' : 'Developing'),
+          factualAlignment: parsed.factualAlignment || (score >= 3 ? 'Fully Aligned' : 'Partially Aligned'),
+          feedback: parsed.feedback || 'Thoughtful response addressing the core literary theme.',
+          modelAnswer: modelAnswer || '',
+        },
+      });
+    }
+
+    // type === 'research' (Baccalaureate Academic Synthesis & Research Task)
+    const boundedMaxMarks = Math.min(20, Math.max(1, Number(maxMarks) || 6));
+    const gradingPrompt = `You are a Senior Egyptian Baccalaureate (البكالوريا المصرية) Academic Research Examiner.
+Evaluate the student's academic research synthesis defense out of ${boundedMaxMarks} marks based on:
+1. Thesis & Argumentative Rigor (40%)
+2. Integration of Provided Empirical Evidence (30%)
+3. Academic Register & Cohesion (30%)
+
+Research Topic: ${String(topic || '').slice(0, 300)}
+Thesis Prompt: ${String(prompt || '').slice(0, 800)}
+Student Defense Submission:
+"""
+${cleanStudentText}
+"""
+Model Defense Benchmark:
+"""
+${String(modelAnswer || '').slice(0, 2000)}
+"""
+
+Respond strictly with valid JSON:
+{
+  "score": number (0 to ${boundedMaxMarks} in 0.5 increments),
+  "maxScore": ${boundedMaxMarks},
+  "feedback": "Constructive bilingual Arabic & English evaluation of the research synthesis"
+}`;
+
+    const parsed = await generateJsonWithFallback(gradingPrompt, 8000, 6500);
+    const score = Math.min(boundedMaxMarks, Math.max(0, Number(parsed.score ?? 0)));
+
+    return res.json({
+      success: true,
+      evaluation: {
+        score,
+        maxScore: boundedMaxMarks,
+        feedback: parsed.feedback || 'Solid academic synthesis and evidence integration.',
+        modelAnswer: modelAnswer || '',
+      },
+    });
+  } catch (err: any) {
+    console.error('AI grading server error:', err);
+    return res.status(500).json({
+      error: err.message || 'Failed to process AI grading request.',
+    });
+  }
+});
+
+// 4. Intelligent Bilingual & Egyptian Dialect Translation Endpoint
+app.post('/api/translate', async (req, res) => {
+  const clientIp = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
+  if (!checkRateLimit(clientIp)) {
+    return res.status(429).json({
+      error: 'Too many translation requests. Please wait a moment and try again.',
+    });
+  }
+
+  const { text, targetLang, style } = req.body || {};
+
+  if (!text || !String(text).trim()) {
+    return res.status(400).json({ error: 'Text input is required for translation.' });
+  }
+
+  const cleanText = String(text).trim().slice(0, 2000);
+
+  if (!geminiApiKey || !ai) {
+    return res.status(503).json({
+      error: 'GEMINI_API_KEY environment variable is not configured on the server.',
+      requiresApiKey: true,
     });
   }
 
@@ -122,7 +374,13 @@ app.post('/api/translate', async (req, res) => {
     const isEgyptianTarget = style === 'egyptian_arabic';
 
     const prompt = `You are an expert English-Arabic translator and educational language specialist specializing in Modern Standard Arabic and Egyptian Colloquial Arabic (العامية المصرية).
-Detect the source language and translate the input into ${targetLang === 'ar' ? (isEgyptianTarget ? 'natural Egyptian Colloquial Arabic (العامية المصرية)' : 'Modern Standard Arabic (العربية الفصحى)') : 'natural, fluent English'}.
+Detect the source language and translate the input into ${
+      targetLang === 'ar'
+        ? isEgyptianTarget
+          ? 'natural Egyptian Colloquial Arabic (العامية المصرية)'
+          : 'Modern Standard Arabic (العربية الفصحى)'
+        : 'natural, fluent English'
+    }.
 
 Special Instructions:
 - Recognize Egyptian colloquial expressions, informal questions, contractions, and daily speech if input is in Egyptian Arabic (e.g. "ازيك", "كويس", "معلش", "إيه الأخبار", "على طول", "توضحهولي", "فاهم").
@@ -131,7 +389,7 @@ Special Instructions:
 - Preserve meaning, tone, intent, numbers, names, and context.
 - If the input is a single word or short phrase with multiple common meanings, provide alternative senses in the 'alternativeSenses' array.
 
-Input Text: "${text}"
+Input Text: "${cleanText}"
 
 Return ONLY a valid JSON object matching this schema:
 {
@@ -149,41 +407,7 @@ Return ONLY a valid JSON object matching this schema:
   "note": "brief educational or dialect note if relevant"
 }`;
 
-    // Server-side timeout (7 seconds) to prevent hanging requests
-    const createTimeoutPromise = (ms: number) =>
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Translation request timed out on server')), ms)
-      );
-
-    const callGeminiModel = async (modelName: string) => {
-      return ai.models.generateContent({
-        model: modelName,
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-        }
-      });
-    };
-
-    let response: any;
-    try {
-      // Primary attempt: gemini-3.8-flash with 7s timeout
-      response = await Promise.race([callGeminiModel('gemini-3.8-flash'), createTimeoutPromise(7000)]);
-    } catch (primaryErr: any) {
-      // Fast fallback attempt: gemini-3.1-flash-lite with 6s timeout
-      try {
-        response = await Promise.race([callGeminiModel('gemini-3.1-flash-lite'), createTimeoutPromise(6000)]);
-      } catch (fallbackErr: any) {
-        throw new Error(fallbackErr.message || primaryErr.message || 'Gemini model request failed');
-      }
-    }
-
-    const outputText = response?.text || '';
-    if (!outputText.trim()) {
-      throw new Error('Received empty response from translation model');
-    }
-
-    const parsed = JSON.parse(outputText);
+    const parsed = await generateJsonWithFallback(prompt, 7000, 6000);
 
     return res.json({
       success: true,
@@ -191,12 +415,12 @@ Return ONLY a valid JSON object matching this schema:
       detectedSourceLang: parsed.detectedSourceLang || 'auto',
       styleUsed: parsed.styleUsed || style || 'msa',
       alternativeSenses: parsed.alternativeSenses || [],
-      note: parsed.note || ''
+      note: parsed.note || '',
     });
   } catch (err: any) {
     console.error('Translation server error:', err);
     return res.status(500).json({
-      error: err.message || 'Failed to process translation request.'
+      error: err.message || 'Failed to process translation request.',
     });
   }
 });
@@ -232,7 +456,7 @@ async function startServer() {
   });
 }
 
-startServer().catch(err => {
+startServer().catch((err) => {
   console.error('Failed to start server:', err);
   process.exit(1);
 });

@@ -27,6 +27,7 @@ import {
 import { UnitExam, CurriculumQuestion, UnitCurriculum, PrepExamBlueprint } from '../types/curriculum.ts';
 import { StudentProfile } from '../types.ts';
 import { recordExamCompletion } from '../services/studentStorage.ts';
+import { speakText as speakViaService, stopSpeaking } from '../utils/speechService.ts';
 
 // Helper to get or synthesize a rich PrepExamBlueprint if not already attached
 function getOrSynthesizePrepBlueprint(exam: UnitExam, unitCurriculum?: UnitCurriculum | null): PrepExamBlueprint {
@@ -62,7 +63,9 @@ function getOrSynthesizePrepBlueprint(exam: UnitExam, unitCurriculum?: UnitCurri
     readingPassage: {
       title: passageTitle,
       passage: passageText,
-      mcqs: [
+      mcqs: (unitCurriculum?.readingModule?.questions && unitCurriculum.readingModule.questions.length >= 3
+        ? unitCurriculum.readingModule.questions.slice(0, 3)
+        : [
         {
           id: `synth_r1`,
           skill: 'Reading',
@@ -108,13 +111,13 @@ function getOrSynthesizePrepBlueprint(exam: UnitExam, unitCurriculum?: UnitCurri
           explanation: 'The text highlights consistency, ethical diligence, and collaboration.',
           exam_trap_explanation: 'Avoid distractors that contain negative or passive study habits.'
         }
-      ],
+      ]),
       openEnded: [
         {
           id: `synth_oe1`,
-          question: `Infer from the passage: Why is education regarded as essential for Egyptian prep students?`,
-          questionAr: `استنتج من النص: لماذا يُعد التعليم ضرورياً لطلاب المرحلة الإعدادية في مصر؟`,
-          modelAnswer: `It fosters personal responsibility, cooperative problem-solving, and civic commitment within the school and wider community.`,
+          question: `Infer from the passage: Why is the main topic of "${title}" important for Egyptian preparatory students?`,
+          questionAr: `استنتج من النص: لماذا يُعد موضوع "${titleAr}" مهماً لطلاب المرحلة الإعدادية في مصر؟`,
+          modelAnswer: `It fosters personal responsibility, cooperative problem-solving, and practical application of ${title.toLowerCase()} in school and community life.`,
           rubric: 'Relevance to text (1 Mark) · Grammatical and lexical correctness (1 Mark)',
           maxMarks: 2
         },
@@ -122,13 +125,22 @@ function getOrSynthesizePrepBlueprint(exam: UnitExam, unitCurriculum?: UnitCurri
           id: `synth_oe2`,
           question: `Suggest a suitable alternative title for the reading passage, providing your rationale.`,
           questionAr: `اقترح عنواناً مناسباً آخر للنص القرائي مع ذكر السبب بإيجاز.`,
-          modelAnswer: `A suitable title is "Pathways to Excellence in ${title}", because the text focuses on diligence, moral character, and purposeful learning.`,
+          modelAnswer: `A suitable title is "Key Lessons on ${title}", because the text focuses on practical skills, vocabulary, and positive habits related to ${title.toLowerCase()}.`,
           rubric: 'Appropriate title (1 Mark) · Valid logical reason (1 Mark)',
           maxMarks: 2
         }
       ]
     },
-    vocabGrammarMcqs: (exam.questions && exam.questions.length >= 6 ? exam.questions.slice(0, 6) : [
+    vocabGrammarMcqs: (() => {
+      const unitVocabEx = unitCurriculum?.vocabularyModule?.exercises || [];
+      const unitGrammarEx = unitCurriculum?.grammarModule?.exercises || [];
+      if (unitVocabEx.length >= 3 && unitGrammarEx.length >= 3) {
+        return [...unitVocabEx.slice(0, 3), ...unitGrammarEx.slice(0, 3)];
+      }
+      if (exam.questions && exam.questions.length >= 6) {
+        return exam.questions.filter(q => q.skill === 'Vocabulary' || q.skill === 'Grammar').slice(0, 6);
+      }
+      return [
       {
         id: `synth_mcq1`,
         skill: 'Vocabulary',
@@ -204,7 +216,8 @@ function getOrSynthesizePrepBlueprint(exam: UnitExam, unitCurriculum?: UnitCurri
         explanation: 'Maintains consistent tense and auxiliary verb alignment.',
         exam_trap_explanation: 'Remember that "didn’t" must be followed by infinitive, and third-person pronouns require singular verbs.'
       }
-    ]),
+      ];
+    })(),
     errorCorrection: [
       {
         id: `synth_err1`,
@@ -297,7 +310,10 @@ export const CurriculumExamModal: React.FC<CurriculumExamModalProps> = ({
     exam.examTitle.toLowerCase().includes('prep') ||
     exam.examId.toLowerCase().includes('prep');
 
-  // Preparatory Blueprint
+  // Preparatory Blueprint & Verification Status
+  const hasOfficialPrepBlueprint = Boolean(
+    exam.prepBlueprint || (unitCurriculum as any)?.unitExam?.prepBlueprint
+  );
   const prepBlueprint = isPrepStage ? getOrSynthesizePrepBlueprint(exam, unitCurriculum) : null;
 
   // Secondary/Baccalaureate Navigation & Section state
@@ -602,19 +618,18 @@ export const CurriculumExamModal: React.FC<CurriculumExamModalProps> = ({
   };
 
   const speakText = (text: string) => {
-    if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
     if (isSpeaking) {
+      stopSpeaking();
       setIsSpeaking(false);
       return;
     }
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-US';
-    utterance.rate = 0.95;
     setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-    window.speechSynthesis.speak(utterance);
+    speakViaService(text, 'en', {
+      rate: 0.95,
+      onStart: () => setIsSpeaking(true),
+      onEnd: () => setIsSpeaking(false),
+      onError: () => setIsSpeaking(false),
+    });
   };
 
   const answeredCount = Object.keys(selectedAnswers).length;
@@ -635,7 +650,9 @@ export const CurriculumExamModal: React.FC<CurriculumExamModalProps> = ({
               <Award className="w-3.5 h-3.5 text-[#FFC928]" />
               <span>
                 {isPrepStage
-                  ? 'الامتحان الرسمي للمرحلة الإعدادية - مطابق لمواصفات وزارة التربية والتعليم'
+                  ? hasOfficialPrepBlueprint
+                    ? 'الامتحان الرسمي للمرحلة الإعدادية - مطابق لمواصفات وزارة التربية والتعليم'
+                    : 'تدريب تطبيقي شامل على مفردات وقواعد الوحدة — المرحلة الإعدادية (Unit Practice Assessment)'
                   : isBaccalaureate
                   ? 'Advanced Collegiate Assessment Model (Literature & Critical Synthesis)'
                   : 'نظام التقييم الرسمي لوزارة التربية والتعليم (85% بابل شيت / إلكتروني + 15% مقالي)'}
@@ -672,7 +689,10 @@ export const CurriculumExamModal: React.FC<CurriculumExamModalProps> = ({
 
             {/* Close Button */}
             <button
-              onClick={onClose}
+              onClick={() => {
+                stopSpeaking();
+                onClose();
+              }}
               className="p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-all cursor-pointer"
               title="Close Exam Window"
             >

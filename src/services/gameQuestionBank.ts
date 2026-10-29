@@ -187,6 +187,51 @@ export function normalizeCurriculumQuestion(
 }
 
 /**
+ * Generates plausible orthographic/phonological spelling distractors for a single English vocabulary word.
+ */
+function buildSpellingDistractors(word: string): [string, string, string] {
+  const clean = word.trim();
+  const variants = new Set<string>();
+
+  // 1. Vowel swap (e <-> i, a <-> e, o <-> u)
+  const vowelSwapped = clean.replace(/[aeiou]/i, (m) => {
+    const lower = m.toLowerCase();
+    if (lower === 'a') return 'e';
+    if (lower === 'e') return 'i';
+    if (lower === 'i') return 'e';
+    if (lower === 'o') return 'u';
+    return 'o';
+  });
+  if (vowelSwapped.toLowerCase() !== clean.toLowerCase()) variants.add(vowelSwapped);
+
+  // 2. Double a medial consonant or drop a doubled consonant
+  const doubleMatch = clean.match(/([bcdfghjklmnpqrstvwxyz])\1/i);
+  if (doubleMatch) {
+    variants.add(clean.replace(/([bcdfghjklmnpqrstvwxyz])\1/i, '$1'));
+  } else if (clean.length >= 4) {
+    const midIdx = Math.floor(clean.length / 2);
+    variants.add(clean.slice(0, midIdx + 1) + clean[midIdx] + clean.slice(midIdx + 1));
+  }
+
+  // 3. Adjacent transposition or silent-e / suffix tweak
+  if (clean.endsWith('e') && clean.length > 3) {
+    variants.add(clean.slice(0, -1));
+  } else {
+    variants.add(`${clean}e`);
+  }
+
+  // 4. Fallback phonetic substitutions
+  variants.add(`${clean}${clean.slice(-1)}`);
+  variants.add(clean.length > 3 ? `${clean.slice(0, 2)}${clean[3]}${clean[2]}${clean.slice(4)}` : `${clean}s`);
+
+  const list = Array.from(variants).filter((v) => v.toLowerCase() !== clean.toLowerCase());
+  while (list.length < 3) {
+    list.push(`${clean}${list.length === 0 ? 'e' : list.length === 1 ? 'n' : 'r'}`);
+  }
+  return [list[0], list[1], list[2]];
+}
+
+/**
  * Retrieves a pool of randomized curriculum questions matching filter options across all stages (Primary, Preparatory, Secondary).
  */
 export function getGameQuestions(options: QuestionFilterOptions = {}): GameQuestion[] {
@@ -219,11 +264,47 @@ export function getGameQuestions(options: QuestionFilterOptions = {}): GameQuest
     const matchGrade = matchesGrade(u.stage, u.grade, grade);
     const matchUnit = unitId === 0 || u.unitNumber === unitId;
 
-    if (matchStage && matchGrade && matchUnit && u.unitExam && u.unitExam.questions) {
-      u.unitExam.questions.forEach((q) => {
-        const norm = normalizeCurriculumQuestion(q, u.stage, u.grade, u.unitNumber);
-        if (norm) normalizedPool.push(norm);
-      });
+    if (matchStage && matchGrade && matchUnit) {
+      if (u.unitExam && u.unitExam.questions) {
+        u.unitExam.questions.forEach((q) => {
+          const norm = normalizeCurriculumQuestion(q, u.stage, u.grade, u.unitNumber);
+          if (norm) normalizedPool.push(norm);
+        });
+      }
+
+      // Synthesize curriculum-grounded Spelling questions from unit vocabularyModule.keyWords so every stage/grade/unit has rich Spelling coverage
+      const unitKeyWords = u.vocabularyModule?.keyWords || [];
+      if (unitKeyWords.length > 0) {
+        unitKeyWords.slice(0, 4).forEach((kv, kvIdx) => {
+          const rawWord = (kv.word || '').trim();
+          // Only use single-word alphabetical items for clean spelling assessment
+          if (!rawWord || rawWord.includes(' ') || rawWord.length < 3) return;
+          const distractors = buildSpellingDistractors(rawWord);
+          const choices = shuffleArray([rawWord, ...distractors]);
+          const correctIndex = choices.indexOf(rawWord);
+          const unitIdent = `${u.stage.toLowerCase()}_g${u.grade}_t${u.semester}_u${u.unitNumber}`;
+
+          normalizedPool.push({
+            id: `curr_spl_${unitIdent}_${kvIdx}`,
+            question: `Choose the correct English spelling for "${kv.meaningAr}" (${u.unitTitle}):`,
+            questionAr: `اختر التهجئة الإملائية الصحيحة لكلمة (${kv.meaningAr}):`,
+            options: choices,
+            correctIndex: correctIndex >= 0 ? correctIndex : 0,
+            explanation: `The correct spelling in ${u.gradeLabel} (${u.unitTitle}) is "${rawWord}" (${kv.meaningAr}).`,
+            explanationAr: `التهجئة الصحيحة للكلمة المقررة بالوحدة هي "${rawWord}" بمعنى (${kv.meaningAr}).`,
+            skill: 'Spelling',
+            unitId: u.unitNumber,
+            stage: u.stage,
+            grade: u.grade,
+            difficulty:
+              u.stage === 'Primary' && u.grade <= 3
+                ? 'easy'
+                : u.stage === 'Secondary'
+                ? 'hard'
+                : 'medium'
+          });
+        });
+      }
     }
   });
 
@@ -306,7 +387,7 @@ export function getGameQuestions(options: QuestionFilterOptions = {}): GameQuest
     );
   } else if (effectiveCategory === 'grammar') {
     filtered = normalizedPool.filter(
-      (q) => q.skill === 'Grammar' || (!q.question.toLowerCase().includes('meaning') && q.skill !== 'Vocabulary')
+      (q) => q.skill === 'Grammar' || (!q.question.toLowerCase().includes('meaning') && q.skill !== 'Vocabulary' && q.skill !== 'Spelling')
     );
   } else if (effectiveCategory === 'spelling') {
     filtered = normalizedPool.filter((q) => q.skill === 'Spelling');

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">EngliMensh</string>
+    <string name="title_activity_main">EngliMensh</string>
+    <string name="package_name">eg.englimensh.app</string>
+    <string name="custom_url_scheme">eg.englimensh.app</string>
+</resources>

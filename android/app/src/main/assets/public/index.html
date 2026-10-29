@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+      (function () {
+        if (typeof window !== 'undefined' && window.WebSocket && !window.__viteHmrWsPatched) {
+          window.__viteHmrWsPatched = true;
+          var NativeWebSocket = window.WebSocket;
+          class SafeViteHmrSocket extends EventTarget {
+            constructor(url, protocols) {
+              super();
+              this.url = String(url || '');
+              this.protocol = Array.isArray(protocols) ? (protocols[0] || '') : (protocols || '');
+              this.readyState = 1;
+              this.CONNECTING = 0;
+              this.OPEN = 1;
+              this.CLOSING = 2;
+              this.CLOSED = 3;
+              this.bufferedAmount = 0;
+              this.extensions = '';
+              this.binaryType = 'blob';
+              queueMicrotask(() => {
+                var evt = new Event('open');
+                this.dispatchEvent(evt);
+                if (typeof this.onopen === 'function') this.onopen(evt);
+              });
+            }
+            send() {}
+            close() {}
+          }
+          SafeViteHmrSocket.CONNECTING = 0;
+          SafeViteHmrSocket.OPEN = 1;
+          SafeViteHmrSocket.CLOSING = 2;
+          SafeViteHmrSocket.CLOSED = 3;
+          var PatchedWebSocket = function (url, protocols) {
+            var isViteHmr =
+              protocols === 'vite-hmr' ||
+              (Array.isArray(protocols) && protocols.indexOf('vite-hmr') !== -1);
+            if (isViteHmr) {
+              return new SafeViteHmrSocket(url, protocols);
+            }
+            return protocols !== undefined
+              ? new NativeWebSocket(url, protocols)
+              : new NativeWebSocket(url);
+          };
+          PatchedWebSocket.prototype = NativeWebSocket.prototype;
+          PatchedWebSocket.CONNECTING = NativeWebSocket.CONNECTING;
+          PatchedWebSocket.OPEN = NativeWebSocket.OPEN;
+          PatchedWebSocket.CLOSING = NativeWebSocket.CLOSING;
+          PatchedWebSocket.CLOSED = NativeWebSocket.CLOSED;
+          window.WebSocket = PatchedWebSocket;
+        }
+        if (typeof navigator !== 'undefined' && navigator.serviceWorker && location.hostname.indexOf('ais-dev') !== -1) {
+          navigator.serviceWorker.getRegistrations().then(function (regs) {
+            for (var i = 0; i < regs.length; i++) {
+              regs[i].unregister();
+            }
+          }).catch(function () {});
+        }
+      })();
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Egyptian MOE 1st Secondary English Exam Engine</title>
+    <meta name="description" content="Comprehensive 5-level exam and assessment system for 1st Secondary Grade English aligned with the Egyptian Ministry of Education syllabus, featuring AI auto-correction for essays and novel critical thinking questions." />
+    <meta property="og:title" content="Egyptian MOE 1st Secondary English Exam Engine" />
+    <meta property="og:description" content="Comprehensive 5-level exam and assessment system for 1st Secondary Grade English aligned with the Egyptian Ministry of Education syllabus, featuring AI auto-correction for essays and novel critical thinking questions." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/app-cover.svg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="/app-cover.svg" />
+
+    <!-- PWA & Mobile Web App Meta Tags -->
+    <meta name="theme-color" content="#0B397D" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="EngliMensh" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/logo.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Caveat:wght@600;700&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+    <style>@media print{@page{size:landscape;margin:0}header,.no-print,nav,button,[role=navigation]{display:none!important}body{color:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;background:#0c101d!important;margin:0!important;padding:0!important}.print-container{max-width:100%!important;box-shadow:none!important;border:none!important;margin:0!important}}</style>
+    <script type="module" crossorigin src="/assets/index-BN7niLRm.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-XKyaHtl9.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-ZSZmaso_.js">
+    <link rel="modulepreload" crossorigin href="/assets/curriculum-baccalaureate-BPjhshTb.js">
+    <link rel="modulepreload" crossorigin href="/assets/curriculum-secondary-BCfG0iJv.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-icons-DSmd5mCB.js">
+    <link rel="modulepreload" crossorigin href="/assets/curriculum-primary-gdJHGksa.js">
+    <link rel="modulepreload" crossorigin href="/assets/curriculum-preparatory-Dx4ByxH3.js">
+    <link rel="modulepreload" crossorigin href="/assets/curriculum-dictionary-uPo2sRud.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-Cr59B4tg.css">
+  <link rel="manifest" href="/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
+  <body class="bg-slate-50 font-sans text-slate-800">
+    <div id="root"></div>
+  </body>
+</html>

@@ -13,8 +13,14 @@ import {
   speakText,
   stopSpeaking,
   checkMicrophonePermission,
+  getArabicSpeechErrorMessage,
+  getNativeSpeechRecognitionPlugin,
+  SpeechRecognitionLifecycleState,
 } from '../utils/speechService.ts';
-import { translateSentence } from '../services/translationService.ts';
+import {
+  translateSentence,
+  lookupOfflineTranslation as lookupBilingualOffline,
+} from '../services/translationService.ts';
 import { TranslationStyle } from '../types/dictionary.ts';
 
 const translationCache = new Map<string, string>();
@@ -24,61 +30,9 @@ const VOICE_LISTEN_TIMEOUT_MS = 8000;
 type Language = 'en' | 'ar';
 type TranslationStatus = 'idle' | 'loading' | 'success' | 'error';
 
-// Built-in offline core vocabulary dictionary for instant fallback
-const OFFLINE_CORE_DICTIONARY: Record<string, { ar: string; en: string }> = {
-  friend: { ar: 'صديق', en: 'friend' },
-  happy: { ar: 'سعيد', en: 'happy' },
-  school: { ar: 'مدرسة', en: 'school' },
-  teacher: { ar: 'معلم / أستاذ', en: 'teacher' },
-  student: { ar: 'طالب', en: 'student' },
-  book: { ar: 'كتاب', en: 'book' },
-  family: { ar: 'عائلة / أسرة', en: 'family' },
-  water: { ar: 'ماء', en: 'water' },
-  science: { ar: 'علوم', en: 'science' },
-  future: { ar: 'مستقبل', en: 'future' },
-  success: { ar: 'نجاح', en: 'success' },
-  knowledge: { ar: 'معرفة', en: 'knowledge' },
-  curriculum: { ar: 'منهج دراسي', en: 'curriculum' },
-  environment: { ar: 'بيئة', en: 'environment' },
-  technology: { ar: 'تكنولوجيا / تقنية', en: 'technology' },
-  education: { ar: 'تعليم', en: 'education' },
-  hello: { ar: 'مرحباً / أهلاً', en: 'hello' },
-  welcome: { ar: 'أهلاً بك', en: 'welcome' },
-  صديق: { ar: 'صديق', en: 'friend' },
-  سعيد: { ar: 'سعيد', en: 'happy' },
-  مدرسة: { ar: 'مدرسة', en: 'school' },
-  معلم: { ar: 'معلم', en: 'teacher' },
-  طالب: { ar: 'طالب', en: 'student' },
-  كتاب: { ar: 'كتاب', en: 'book' },
-  عائلة: { ar: 'عائلة', en: 'family' },
-  مستقبل: { ar: 'مستقبل', en: 'future' },
-  نجاح: { ar: 'نجاح', en: 'success' },
-  تعليم: { ar: 'تعليم', en: 'education' },
-};
-
 interface FastTranslatorProps {
   onSaveWord: (word: string, translation: string) => void;
 }
-
-const getSpeechErrorMessage = (error: string): string => {
-  switch (error) {
-    case 'not-allowed':
-    case 'service-not-allowed':
-      return 'تم رفض صلاحية الميكروفون. اسمح للتطبيق باستخدام الميكروفون من إعدادات المتصفح أو التطبيق.';
-    case 'audio-capture':
-      return 'لم يتم العثور على ميكروفون متاح. تحقق من توصيل الميكروفون وصلاحياته.';
-    case 'no-speech':
-      return 'لم نلتقط أي كلام. اضغط على الميكروفون وحاول التحدث بوضوح.';
-    case 'network':
-      return 'تعذر الاتصال بخدمة التعرف على الصوت. تحقق من الإنترنت وحاول مرة أخرى.';
-    case 'language-not-supported':
-      return 'خدمة التعرف على الصوت لا تدعم اللغة المحددة في هذه البيئة.';
-    case 'aborted':
-      return 'تم إيقاف التسجيل.';
-    default:
-      return 'تعذر التعرف على الكلام. تحقق من الميكروفون والصلاحيات وحاول مرة أخرى.';
-  }
-};
 
 export const FastTranslator: React.FC<FastTranslatorProps> = ({ onSaveWord }) => {
   const [sourceText, setSourceText] = useState('');
@@ -86,6 +40,7 @@ export const FastTranslator: React.FC<FastTranslatorProps> = ({ onSaveWord }) =>
   const [status, setStatus] = useState<TranslationStatus>('idle');
   const [sourceLang, setSourceLang] = useState<Language>('en');
   const [dialectStyle, setDialectStyle] = useState<TranslationStyle>('msa');
+  const [voiceState, setVoiceState] = useState<SpeechRecognitionLifecycleState>('idle');
   const [isListening, setIsListening] = useState(false);
   const [voiceStatusMessage, setVoiceStatusMessage] = useState('');
   const [voiceError, setVoiceError] = useState('');
@@ -100,6 +55,7 @@ export const FastTranslator: React.FC<FastTranslatorProps> = ({ onSaveWord }) =>
   const requestIdRef = useRef(0);
   const mountedRef = useRef(true);
   const listeningRef = useRef(false);
+  const hasSubmittedVoiceResultRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -175,7 +131,7 @@ export const FastTranslator: React.FC<FastTranslatorProps> = ({ onSaveWord }) =>
     setResultText('');
     setSavedFeedback(false);
 
-    // 1. Try translationService first (supports /api/translate, GTX fallback, and 2-level LocalStorage cache)
+    // 1. Try translationService first (supports VITE_API_BASE_URL /api/translate, offline bilingual dictionary, and GTX fallback)
     try {
       const serviceRes = await translateSentence(query, lang, targetLang, style);
       if (requestId !== requestIdRef.current || !mountedRef.current) return;
@@ -191,7 +147,16 @@ export const FastTranslator: React.FC<FastTranslatorProps> = ({ onSaveWord }) =>
       // Proceed to MyMemory / Offline dictionary fallback
     }
 
-    // 2. Fallback to MyMemory API with timeout
+    // 2. Check Offline Bilingual Dictionary (preserves Egyptian vs MSA)
+    const offlineHit = lookupBilingualOffline(query, targetLang, style);
+    if (offlineHit && requestId === requestIdRef.current && mountedRef.current) {
+      translationCache.set(cacheKey, offlineHit);
+      setResultText(offlineHit);
+      setStatus('success');
+      return;
+    }
+
+    // 3. Fallback to MyMemory API with timeout
     timeoutRef.current = setTimeout(() => {
       controller.abort();
     }, TRANSLATION_TIMEOUT_MS);
@@ -237,16 +202,6 @@ export const FastTranslator: React.FC<FastTranslatorProps> = ({ onSaveWord }) =>
         return;
       }
 
-      // 3. Check Offline Core Dictionary before reporting error
-      const offlineEntry = OFFLINE_CORE_DICTIONARY[query.toLowerCase()];
-      if (offlineEntry) {
-        const fallbackWord = targetLang === 'ar' ? offlineEntry.ar : offlineEntry.en;
-        translationCache.set(cacheKey, fallbackWord);
-        setResultText(fallbackWord);
-        setStatus('success');
-        return;
-      }
-
       setStatus('error');
       if (controller.signal.aborted) {
         setResultText(
@@ -257,7 +212,6 @@ export const FastTranslator: React.FC<FastTranslatorProps> = ({ onSaveWord }) =>
           'تعذرت الترجمة حاليًا. تحقق من الاتصال بالإنترنت وحاول مرة أخرى.'
         );
       }
-      console.error('[FastTranslator] Translation failed:', error);
     } finally {
       if (requestId === requestIdRef.current) {
         if (timeoutRef.current) {
@@ -279,29 +233,52 @@ export const FastTranslator: React.FC<FastTranslatorProps> = ({ onSaveWord }) =>
     clearListenTimer();
     listeningRef.current = false;
     setIsListening(false);
+    setVoiceState('idle');
     setVoiceStatusMessage('');
 
+    if (recognitionRef.current) {
+      try {
+        const rec = recognitionRef.current;
+        recognitionRef.current = null;
+        rec.onstart = null;
+        rec.onresult = null;
+        rec.onerror = null;
+        rec.onend = null;
+        rec.stop();
+      } catch {
+        // Ignore
+      }
+    }
+
     try {
-      recognitionRef.current?.stop();
+      const capSpeech = getNativeSpeechRecognitionPlugin();
+      if (capSpeech && typeof capSpeech.stop === 'function') {
+        void capSpeech.stop();
+      }
     } catch {
       // Ignore
     }
   };
 
   const toggleVoiceInput = async () => {
-    if (listeningRef.current) {
+    if (listeningRef.current || voiceState === 'listening' || voiceState === 'requesting_permission') {
       stopVoiceInput();
       return;
     }
 
     setVoiceError('');
+    hasSubmittedVoiceResultRef.current = false;
+    setVoiceState('requesting_permission');
     setVoiceStatusMessage('جارٍ التحقق من صلاحية الميكروفون...');
 
     stopSpeaking();
     setIsSpeaking(false);
 
+    // Non-contending permission check (never opens a competing getUserMedia stream)
     const permCheck = await checkMicrophonePermission();
     if (!permCheck.granted) {
+      if (!mountedRef.current) return;
+      setVoiceState('error');
       setVoiceStatusMessage('');
       setVoiceError(
         permCheck.errorArabic || 'تعذر الحصول على صلاحية الميكروفون.'
@@ -309,11 +286,74 @@ export const FastTranslator: React.FC<FastTranslatorProps> = ({ onSaveWord }) =>
       return;
     }
 
+    const languageAtStart = sourceLang;
+    const locale = languageAtStart === 'en' ? 'en-US' : 'ar-EG';
+
+    // Capability-based Capacitor Android Native SpeechRecognition adapter if present
+    const capSpeech = getNativeSpeechRecognitionPlugin();
+    if (capSpeech && typeof capSpeech.start === 'function') {
+      try {
+        listeningRef.current = true;
+        setIsListening(true);
+        setVoiceState('listening');
+        setVoiceStatusMessage('🎙️ جاري الاستماع... تحدث الآن بوضوح.');
+
+        clearListenTimer();
+        listenTimeoutRef.current = setTimeout(() => {
+          if (listeningRef.current && mountedRef.current) {
+            stopVoiceInput();
+            setVoiceState('error');
+            setVoiceError('انتهت مهلة الاستماع دون التقاط صوت واضح. حاول مرة أخرى.');
+          }
+        }, VOICE_LISTEN_TIMEOUT_MS);
+
+        const capResult = await capSpeech.start({
+          language: locale,
+          maxResults: 1,
+          partialResults: false,
+          popup: false,
+        });
+
+        clearListenTimer();
+        if (!mountedRef.current) return;
+
+        listeningRef.current = false;
+        setIsListening(false);
+
+        const spoken = capResult?.matches?.[0]?.trim?.() || '';
+        if (!spoken) {
+          setVoiceState('error');
+          setVoiceStatusMessage('');
+          setVoiceError('لم يتم التقاط كلام واضح. حاول التحدث مرة أخرى.');
+          return;
+        }
+
+        if (!hasSubmittedVoiceResultRef.current) {
+          hasSubmittedVoiceResultRef.current = true;
+          setVoiceState('success');
+          setSourceText(spoken);
+          setVoiceError('');
+          setVoiceStatusMessage('✅ تم التقاط الصوت وجارٍ الترجمة الفورية...');
+          void executeTranslation(spoken, languageAtStart, dialectStyle);
+        }
+        return;
+      } catch {
+        clearListenTimer();
+        listeningRef.current = false;
+        setIsListening(false);
+        setVoiceState('error');
+        setVoiceStatusMessage('');
+        setVoiceError('تعذر التعرف على الصوت. تأكد من صلاحية الميكروفون وحاول مرة أخرى.');
+        return;
+      }
+    }
+
     const SpeechRecognitionAPI =
       (window as any).SpeechRecognition ||
       (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognitionAPI) {
+      setVoiceState('error');
       setVoiceStatusMessage('');
       setVoiceError(
         'التعرف على الصوت غير مدعوم في هذا المتصفح. يمكنك كتابة النص مباشرة أو استخدام متصفح Chrome.'
@@ -330,10 +370,8 @@ export const FastTranslator: React.FC<FastTranslatorProps> = ({ onSaveWord }) =>
       recognitionRef.current = null;
     }
 
-    const languageAtStart = sourceLang;
     const instance = new SpeechRecognitionAPI();
-
-    instance.lang = languageAtStart === 'en' ? 'en-US' : 'ar-EG';
+    instance.lang = locale;
     instance.interimResults = false;
     instance.maxAlternatives = 1;
 
@@ -341,6 +379,7 @@ export const FastTranslator: React.FC<FastTranslatorProps> = ({ onSaveWord }) =>
       if (!mountedRef.current) return;
       listeningRef.current = true;
       setIsListening(true);
+      setVoiceState('listening');
       setVoiceError('');
       setVoiceStatusMessage('🎙️ جاري الاستماع... تحدث الآن بوضوح.');
 
@@ -354,6 +393,7 @@ export const FastTranslator: React.FC<FastTranslatorProps> = ({ onSaveWord }) =>
           }
           listeningRef.current = false;
           setIsListening(false);
+          setVoiceState('error');
           setVoiceStatusMessage('');
           setVoiceError('انتهت مهلة الاستماع دون التقاط صوت واضح. حاول مرة أخرى.');
         }
@@ -369,14 +409,20 @@ export const FastTranslator: React.FC<FastTranslatorProps> = ({ onSaveWord }) =>
       setIsListening(false);
 
       if (!spokenText) {
+        setVoiceState('error');
         setVoiceStatusMessage('');
         setVoiceError('لم يتم التقاط كلام واضح. حاول التحدث مرة أخرى.');
         return;
       }
 
+      if (hasSubmittedVoiceResultRef.current) return;
+      hasSubmittedVoiceResultRef.current = true;
+
+      setVoiceState('processing');
       setSourceText(spokenText);
       setVoiceError('');
       setVoiceStatusMessage('✅ تم التقاط الصوت وجارٍ الترجمة الفورية...');
+      setVoiceState('success');
       void executeTranslation(spokenText, languageAtStart, dialectStyle);
     };
 
@@ -388,9 +434,13 @@ export const FastTranslator: React.FC<FastTranslatorProps> = ({ onSaveWord }) =>
       setIsListening(false);
       setVoiceStatusMessage('');
 
-      if (event.error === 'aborted') return;
+      if (event.error === 'aborted') {
+        setVoiceState('idle');
+        return;
+      }
 
-      setVoiceError(getSpeechErrorMessage(event.error));
+      setVoiceState('error');
+      setVoiceError(getArabicSpeechErrorMessage(event.error));
     };
 
     instance.onend = () => {
@@ -398,11 +448,12 @@ export const FastTranslator: React.FC<FastTranslatorProps> = ({ onSaveWord }) =>
       clearListenTimer();
       listeningRef.current = false;
       setIsListening(false);
+      setVoiceState((prev) =>
+        prev === 'listening' || prev === 'requesting_permission' ? 'idle' : prev
+      );
     };
 
     recognitionRef.current = instance;
-    listeningRef.current = true;
-    setIsListening(true);
 
     try {
       instance.start();
@@ -410,6 +461,7 @@ export const FastTranslator: React.FC<FastTranslatorProps> = ({ onSaveWord }) =>
       clearListenTimer();
       listeningRef.current = false;
       setIsListening(false);
+      setVoiceState('error');
       setVoiceStatusMessage('');
       recognitionRef.current = null;
       setVoiceError(

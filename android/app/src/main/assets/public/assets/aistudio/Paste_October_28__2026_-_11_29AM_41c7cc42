@@ -1,0 +1,748 @@
+ENG LIMENSH.EG — COMPLETE PRODUCTION REFACTOR
+
+Five-Tab Gamified English Learning Platform
+
+Author & System Architect: Mohammad El-Menshawy (محمد المنشاوي)
+
+ROLE & MISSION
+
+Act as a Senior Full-Stack React Engineer, Mobile UX Architect, Educational Game Developer, and QA Engineer.
+
+Your mission is to refactor the EXISTING EngliMensh.eg application in place into a polished, mobile-first, five-tab English-learning platform suitable for real students, daily use, Android deployment, and future Play Store publication.
+
+This is an implementation task, NOT a design proposal.
+
+Mandatory execution rules:
+
+- Inspect the existing project, package.json, routing, components, curriculum databases, game modules, translation logic, storage, and current UI before making changes.
+- Modify the existing application instead of creating a disconnected demo or replacing the project with a simplified template.
+- Preserve all valid existing curriculum content, question banks, games, audio features, student profiles, rankings, saved vocabulary, and progress data.
+- Do not remove working functionality simply because it is not mentioned in the new design.
+- Do not introduce placeholder curricula, fake AI responses, dead buttons, nonfunctional cards, or fabricated claims of successful operations.
+- Implement the complete feature set, run available checks, fix errors, and provide a concise implementation report.
+
+If an existing feature is incomplete, implement the best functional solution possible without destroying existing data or silently claiming that an external service is connected.
+
+---
+
+1. DESIGN SYSTEM
+
+Use the following visual identity consistently across all five screens.
+
+Brand palette
+
+- Primary royal blue: #1E3A8A
+- Deep navy: #0F2856
+- Primary amber: #F59E0B
+- Dark amber: #D97706
+- Background: #F8FAFC
+- Cards: #FFFFFF
+- Primary text: #0F172A
+- Secondary text: #64748B
+- Borders: #E2E8F0
+- Success: accessible green tones
+- Locked or disabled states: neutral slate tones
+
+Visual language
+
+- Modern educational SaaS quality with a friendly, energetic, Duolingo-inspired learning experience.
+- Rounded-2xl cards, subtle borders, restrained shadows, consistent spacing, clear typography, and readable Arabic/English text.
+- Use a consistent Arabic-capable font stack and support proper RTL rendering without breaking English content.
+- Use Lucide icons or existing project icons consistently.
+- Use meaningful sports illustrations, original CSS/SVG artwork, or existing licensed assets for game cards.
+- Avoid excessive gradients, oversized headers, cluttered cards, and decorative animations that slow down older phones.
+- Respect reduced-motion preferences and provide visible keyboard focus states.
+
+Responsive requirements
+
+- Design for 320px-wide mobile screens first.
+- Support modern Android phones, tablets, and desktop browsers.
+- Prevent horizontal overflow, clipped Arabic text, overlapping buttons, and content hidden behind navigation.
+- Use a consistent 44px minimum touch-target height where practical.
+- Add bottom content padding equal to the navigation height plus safe-area insets.
+- Respect mobile safe areas, including "env(safe-area-inset-bottom)".
+
+---
+
+2. APPLICATION ARCHITECTURE
+
+Create a maintainable modular React application using the project's existing framework, TypeScript configuration, and Tailwind CSS setup.
+
+Do not replace the current build system unless absolutely necessary.
+
+Recommended component structure, adapted to the existing repository:
+
+- "App.tsx" — application shell and active-screen orchestration.
+- "components/BottomNavigation.tsx"
+- "components/AppHeader.tsx"
+- "components/XPBadge.tsx"
+- "components/ProgressBar.tsx"
+- "components/QuestCard.tsx"
+- "components/EmptyState.tsx"
+- "screens/HomeScreen.tsx"
+- "screens/CurriculaScreen.tsx"
+- "screens/GamesScreen.tsx"
+- "screens/SmartToolsScreen.tsx"
+- "screens/ProfileScreen.tsx"
+- "components/curriculum/" — learning paths and lesson views.
+- "components/games/" — reusable game shell and individual game engines.
+- "components/translator/" — translation, speech input, and pronunciation.
+- "services/" — translation adapters and other service integrations.
+- "hooks/" — reusable application hooks.
+- "utils/" — scoring, progress calculations, validation, and storage helpers.
+- "types/" — shared TypeScript interfaces.
+- "data/" — preserve and reuse the existing authoritative curriculum and question-bank data.
+
+These are architectural recommendations, not permission to duplicate files that already exist.
+
+Keep components small, typed, reusable, and independently testable.
+
+Navigation contract
+
+Implement exactly five primary bottom-navigation destinations:
+
+1. الرئيسية
+2. المناهج
+3. ساحة الألعاب
+4. الأدوات الذكية
+5. حسابي
+
+Requirements:
+
+- Exactly five primary navigation items, with consistent icons and Arabic labels.
+- Highlight the currently selected destination.
+- Navigation must work instantly through client-side state or the existing client-side router.
+- Preserve navigation state and prevent accidental full-page reloads.
+- Each destination must render its actual screen, not just change the active icon.
+- Provide a persistent, accessible bottom bar on mobile.
+- Support browser back navigation when appropriate, especially when a lesson or game is open.
+- Deep-linkable routes may be used if compatible with the existing project.
+- Lesson details and active gameplay should open as dedicated views without adding extra primary navigation tabs.
+- Do not reintroduce teacher authentication, teacher dashboards, supervisor login modals, or hardcoded teacher accounts. Keep the student-facing application focused on learning.
+
+---
+
+3. TAB ONE — الرئيسية
+
+Create a personalized student dashboard that encourages daily learning.
+
+A. Header
+
+Display:
+
+- EngliMensh.eg branding and existing application logo.
+- Student greeting and nickname when available.
+- Current daily streak, represented by a flame icon.
+- Total XP with a star icon.
+- A compact profile shortcut.
+
+Read actual student data from the existing profile and progress systems. If no progress exists, display a truthful first-use state instead of inventing completed lessons.
+
+B. Welcome card
+
+Use this Arabic welcome message:
+
+"مرحباً يا بطل! جاهز لتحدي اليوم في اللغة الإنجليزية؟"
+
+Include a short supporting sentence and a clear call to action that navigates to an appropriate learning activity.
+
+C. Daily Quest
+
+Build an interactive daily challenge card containing:
+
+- Challenge title.
+- Learning target.
+- Current progress and total target.
+- Accurate percentage progress.
+- XP reward, where supported by the existing reward system.
+- Button: "متابعة التحدي الآن ⚡"
+
+Example challenge:
+
+"حل 10 أسئلة في قواعد Unit 3"
+
+The example is illustrative only. Connect the card to the student's selected stage, available curriculum, and actual question bank.
+
+Requirements:
+
+- Progress updates after eligible learning activity.
+- Completing the challenge awards XP only once.
+- Prevent duplicate rewards from repeated button clicks or screen reloads.
+- If no suitable challenge exists, generate one from valid local question-bank data.
+- Never mark a challenge complete before its actual conditions are satisfied.
+
+D. Continue Learning
+
+Display the most recent active curriculum or the student's recommended next activity.
+
+Example:
+
+"Super Goal 2 • الصف الأول المتوسط"
+
+Show the actual lesson or unit name, progress, and a resume button:
+
+"إكمال الدرس ▶"
+
+Clicking the button must reopen the correct lesson and preserve its existing progress.
+
+If there is no previous activity, display a clear "ابدأ التعلم" action that opens the curriculum selector.
+
+E. Featured Games
+
+Display three visually distinct game shortcuts:
+
+- ضربات الجزاء
+- شد الحبل
+- بطولة البولينج
+
+Each shortcut must open its corresponding working game.
+
+F. Quick Leaderboard
+
+Display the top three students from real, available leaderboard data, with ranks, names, and XP.
+
+If a genuine shared leaderboard is not configured, use clearly labeled local-device rankings or an honest empty state. Never fabricate a classroom, other students' results, or synchronized competition.
+
+---
+
+4. TAB TWO — المناهج
+
+Build a structured learning-path experience connected to the actual Egyptian English curriculum database.
+
+A. Stage selector
+
+Display three accessible segmented controls:
+
+- الابتدائي
+- المتوسط
+- الثانوي
+
+Selecting a stage must update the available grades, curriculum, units, and lessons.
+
+Preserve all supported existing curriculum content, including:
+
+- Primary: Connect and Connect Plus.
+- Preparatory: New Hello and Advanced.
+- Secondary: Standard English and Thanawya Amma preparation.
+
+Where the existing project contains additional books or curriculum mappings, preserve them.
+
+Do not silently replace Egyptian curricula with Saudi curricula. Saudi textbook references may remain only where already intentionally supported as separate content.
+
+B. Grade and textbook selection
+
+Provide grade and textbook selectors based on actual available data.
+
+Ensure:
+
+- No duplicate grade entries.
+- No broken or empty unit links.
+- No sample-only curriculum.
+- Correct mapping between textbook, grade, unit, vocabulary, grammar, and questions.
+
+C. Vertical learning path
+
+Create a polished, mobile-friendly, connected learning path.
+
+Each unit contains:
+
+- Unit title and number.
+- Completion percentage.
+- Completed nodes with checkmarks.
+- Current active node with a subtle animation.
+- Locked nodes with padlock indicators.
+- Vocabulary, grammar, dialogue, and assessment activities where supported.
+
+Use real completion state rather than arbitrary percentages.
+
+D. Learning nodes
+
+Clicking an unlocked node opens a dedicated lesson view containing the relevant activity.
+
+Support:
+
+- Vocabulary cards with English terms and Arabic meanings where available.
+- Pronunciation playback.
+- Grammar explanations appropriate to the selected grade.
+- Interactive multiple-choice questions.
+- Dialogue and contextual exercises.
+- Reordering activities where supported.
+- Instant feedback.
+- Lesson progress.
+- Completion summary and earned XP.
+
+For locked nodes, explain the actual prerequisite. Unlock nodes when the defined prerequisite is met.
+
+Preserve existing lesson content and avoid generating fake answers to fill missing curriculum data.
+
+E. Lesson navigation
+
+Provide:
+
+- A prominent back button.
+- Clear lesson title and unit context.
+- Accessible activity tabs where useful.
+- Mobile-friendly scrolling.
+- Progress persistence.
+- A clear next-activity action.
+
+Opening a lesson must not require a popup that traps the student or an unnecessary full-page reload.
+
+---
+
+5. TAB THREE — ساحة الألعاب
+
+Create an energetic, sports-themed learning arena.
+
+A. Filters
+
+Add functional selectors for:
+
+- المرحلة الدراسية.
+- الصف الدراسي.
+- الصعوبة: سهل، متوسط، صعب.
+
+Filters must affect the questions and challenge configuration actually used by the games.
+
+Do not offer a grade or difficulty that is unsupported without a clear fallback.
+
+B. Game 1 — ضربات الجزاء
+
+Title: "Shoot & Score — دوري الفصل"
+
+Build or preserve a playable penalty-shootout game with:
+
+- A football goal and goalkeeper.
+- A clear shooting interaction.
+- Multiple answer choices linked to curriculum questions.
+- Correct answers that score goals.
+- Incorrect answers that produce appropriate feedback.
+- Scoreboard, attempts, and remaining shots.
+- Short sound effects and visual celebrations.
+- A match summary and XP rewards.
+
+Question content must come from the selected stage and grade.
+
+C. Game 2 — شد الحبل
+
+Title: "Tug of Words — تحدي الذكاء الاصطناعي"
+
+Build or preserve a playable one-player-versus-AI word challenge.
+
+Requirements:
+
+- A visible tug-of-war arena.
+- English vocabulary, grammar, or sentence questions.
+- A player-side and an AI-opponent-side progress indicator.
+- Correct answers move the rope toward the answering side.
+- Difficulty affects the challenge in a measurable way.
+- A clear countdown or turn indicator where appropriate.
+- A final result screen.
+
+The opponent must use a working local decision algorithm. Do not claim a real generative AI opponent is running when the game uses local rules.
+
+D. Game 3 — بطولة البولينج
+
+Build or preserve a playable bowling championship with:
+
+- Bowling pins and a ball.
+- A question-driven bowling turn.
+- Correct answers that improve the player's shot or score.
+- A visible frame/round scoreboard.
+- Sound and animation feedback.
+- A final score summary.
+
+Implement actual game logic, not static illustrations with nonfunctional buttons.
+
+E. Shared game engine requirements
+
+All games must:
+
+- Work without network requests during active gameplay.
+- Use locally available question pools.
+- Support restart, replay, and exit.
+- Prevent double scoring.
+- Persist eligible progress and XP safely.
+- Provide accessible controls and non-audio feedback.
+- Respect reduced-motion preferences.
+- Use locally available assets and sounds whenever possible.
+- Load quickly on entry-level Android devices.
+
+Create original sports-style artwork with CSS, SVG, or existing licensed assets. Do not depend on broken external image URLs.
+
+---
+
+6. TAB FOUR — الأدوات الذكية
+
+Implement three functional tools inside this single primary tab.
+
+A. Fast AI Translator
+
+Build a clean English-Arabic translation interface with:
+
+- Source-language selector.
+- Target-language selector.
+- Automatic language detection where reliable.
+- Swap-language button.
+- Multiline text input.
+- Clear-text button.
+- Translate button: "ترجم الآن".
+- Result area.
+- Copy-result button.
+- Pronunciation playback when supported.
+
+Support English ↔ Arabic, including Egyptian Arabic output when explicitly selected or available.
+
+Translation architecture
+
+Separate the UI from the translation service using a typed adapter.
+
+Implement:
+
+1. Input validation.
+2. Instant local cache lookup.
+3. Debounced or controlled requests where appropriate.
+4. Loading, success, empty, timeout, and error states.
+5. Safe cancellation of obsolete requests.
+6. Graceful fallback when the translation provider is unavailable.
+7. Clear error messages in Arabic.
+8. Retry without losing the user's input.
+
+Cache results by normalized source text, source language, target language, and dialect.
+
+Do not present the original input as a successful translation.
+
+Do not simulate successful AI responses, expose API keys, or embed secret credentials in client-side code.
+
+If the current project already has a functioning translation provider, preserve and reuse it. If a secure external provider requires credentials or a backend that is not available, implement a clean provider interface and an honest unavailable state rather than pretending the service is connected.
+
+The UI must remain usable even when translation fails.
+
+B. Pronunciation Trainer — درب صوتك
+
+Implement a pronunciation-practice interface with:
+
+- A prominent record button: "تسجيل".
+- A waveform or audio-level visualization.
+- Microphone permission handling.
+- Recording/listening state.
+- Clear stop, cancel, retry, and reset controls.
+- English phrase entry for practice.
+- Speech playback using supported browser speech synthesis.
+- Speech recognition when the browser supports it.
+- Recognition transcript and feedback.
+
+Critical microphone requirements
+
+Do not leave the application stuck on "تحدث الآن".
+
+Implement a proper state machine, such as:
+
+"idle → requesting_permission → listening → processing → result"
+
+Also support transitions to:
+
+- permission_denied
+- unsupported
+- no_speech
+- network_error
+- timeout
+- cancelled
+
+Requirements:
+
+- Start recognition only after a valid user action.
+- Detect recognition start, result, error, and end events.
+- Set a bounded listening timeout.
+- Stop tracks and clean up event handlers when recording ends or the component unmounts.
+- Handle empty transcripts and silence.
+- Reset the listening state after every terminal event.
+- Prevent duplicate recognition sessions.
+- Provide a manual text-entry fallback.
+- Explain that microphone recognition support varies by browser and may require HTTPS.
+- Do not claim that a pronunciation score is scientifically validated unless a genuine scoring engine supports it.
+
+Where speech recognition is unsupported, clearly explain the limitation and preserve text-based practice and speech playback.
+
+C. My Word Bank — بنك كلماتي
+
+Create a personal saved-vocabulary list containing:
+
+- English word or phrase.
+- Arabic meaning when available.
+- Save date.
+- Speaker icon for pronunciation.
+- Remove-from-list action.
+- Search and filtering.
+- Empty state with a helpful action.
+
+Allow students to save words from curricula, translator results, and vocabulary exercises.
+
+Prevent duplicates using normalized word and language keys.
+
+Persist saved words locally and provide safe migration from existing storage formats.
+
+---
+
+7. TAB FIVE — حسابي والجوائز
+
+Create a student profile and trophy room.
+
+A. Student identity
+
+Display:
+
+- Student avatar or profile image.
+- Editable nickname.
+- Student's selected educational stage and grade.
+- Current learning streak.
+- Total XP.
+- Learning activity summary.
+
+Use the existing student profile when available.
+
+Do not introduce unnecessary teacher login or authentication screens.
+
+B. XP and progress
+
+Display a prominent banner such as:
+
+"🏆 1250 XP"
+
+The number is an example of presentation only. Always display the actual stored total.
+
+Implement a centralized reward system with:
+
+- Unique activity-completion identifiers.
+- Duplicate-reward protection.
+- Safe score calculations.
+- Persistent progress.
+- Consistent XP rules across games, lessons, and quests.
+
+If XP data already exists, migrate and preserve it rather than resetting it.
+
+C. Achievements and badges
+
+Create a visual achievement grid, including achievements such as:
+
+- 5 أيام متتالية.
+- بطل شد الحبل.
+- صائد القواعد.
+- نجم المفردات.
+- محترف التحديات.
+
+Each badge must have:
+
+- Title.
+- Description.
+- Unlock criteria.
+- Locked/unlocked visual state.
+- Unlock date where available.
+
+Unlock badges only when their actual criteria are met.
+
+D. Leaderboard
+
+Build a ranked podium for first, second, and third place.
+
+Display student names, rank, and actual points when genuine ranking data exists.
+
+Support:
+
+- Current student's rank when calculable.
+- Local-device leaderboard where appropriate.
+- A clear distinction between local and shared rankings.
+- An honest empty state when no real ranking data exists.
+
+Do not invent other students, classroom membership, synchronized rankings, or server functionality.
+
+If cross-device rankings are not currently supported, isolate the leaderboard behind a data-provider interface so a secure backend can be added later.
+
+E. Profile settings
+
+Include functional options for:
+
+- Updating nickname.
+- Changing avatar when supported.
+- Selecting the preferred educational stage.
+- Reviewing saved vocabulary.
+- Viewing progress and achievements.
+- Resetting progress only after an explicit confirmation.
+
+Never erase curriculum data or other unrelated saved information during a student progress reset.
+
+---
+
+8. LOCAL DATA, PERSISTENCE, AND OFFLINE PLAY
+
+Use the existing storage layer whenever possible.
+
+Implement or adapt a consistent data model for:
+
+- Student profile.
+- Selected stage, grade, and textbook.
+- Lesson progress.
+- Daily quest progress.
+- XP transactions.
+- Daily streaks.
+- Achievement unlocks.
+- Game scores.
+- Saved vocabulary.
+- Recent learning activity.
+- Local leaderboard records.
+
+Requirements:
+
+- Use versioned storage schemas and safe migrations.
+- Validate stored JSON before consuming it.
+- Handle missing, malformed, or outdated values gracefully.
+- Avoid overwriting valid stored data with default values during startup.
+- Handle localStorage failures without crashing the application.
+- Use IndexedDB only when it materially improves larger datasets or offline requirements.
+- Keep active game question pools and gameplay logic client-side.
+- Cache the application shell and suitable static curriculum assets if the existing PWA architecture supports reliable offline use.
+- Clearly distinguish offline functionality from features requiring network connectivity.
+
+Do not introduce a new storage library when the current implementation already satisfies the requirements.
+
+---
+
+9. ACCESSIBILITY, PERFORMANCE, AND MOBILE QUALITY
+
+Implement:
+
+- Semantic buttons, headings, and navigation landmarks.
+- Accessible labels for icon-only controls.
+- Visible keyboard focus.
+- Adequate contrast.
+- RTL-safe spacing and layout.
+- Appropriate loading and empty states.
+- Reduced-motion support.
+- Lazy loading for nonessential screen modules where beneficial.
+- Cleanup for audio, timers, and event listeners.
+- Stable React keys.
+- Responsive layouts without horizontal overflow.
+- No unnecessary network calls during gameplay.
+- No console errors caused by missing data or invalid state transitions.
+
+Animations must enhance learning without delaying interactions.
+
+---
+
+10. TESTING AND ACCEPTANCE CRITERIA
+
+Do not stop after changing the visual design.
+
+Inspect and execute the available project scripts and checks.
+
+At minimum, validate:
+
+Navigation
+
+- All five tabs open the correct screen.
+- The active tab is highlighted correctly.
+- No unintended sixth primary tab appears.
+- Back navigation works from lessons and games.
+- Mobile bottom navigation does not cover content.
+
+Curriculum
+
+- All supported stages and grades remain accessible.
+- Textbook and unit mappings are correct.
+- Lesson nodes open valid content.
+- Progress updates and survives reload.
+- Locked nodes enforce actual prerequisites.
+
+Games
+
+- All three games start, accept input, score, finish, and restart.
+- Questions come from the appropriate local pools.
+- XP is awarded correctly and only once per eligible completion.
+- Gameplay remains functional when the network is disconnected.
+
+Translator
+
+- Empty input is handled.
+- Cache hits are immediate.
+- Errors and unavailable providers are handled honestly.
+- Language swapping works.
+- User input is preserved on failure.
+
+Pronunciation
+
+- Microphone permission granted.
+- Microphone permission denied.
+- Unsupported browser.
+- Silence and no-speech errors.
+- Recognition success.
+- Timeout, cancellation, and repeated recording.
+- No permanent listening state after errors.
+
+Profile and persistence
+
+- Profile changes persist.
+- XP cannot be duplicated through repeated actions.
+- Badges unlock only when earned.
+- Existing saved vocabulary and progress survive migration.
+- Progress reset requires confirmation.
+
+Build
+
+- Run the project's actual build command.
+- Run TypeScript validation, such as "npx tsc --noEmit", if supported by the current project.
+- Run available lint and tests.
+- Fix introduced errors rather than suppressing them with broad TypeScript ignores or disabling checks.
+- Check for missing imports, invalid routes, unresolved assets, and broken runtime references.
+
+Do not claim that a test passed unless it was actually executed.
+
+---
+
+11. IMPLEMENTATION ORDER
+
+Perform the refactor in this order:
+
+1. Audit the existing repository and identify reusable components, data, routes, and known defects.
+2. Establish the design tokens and responsive application shell.
+3. Implement the five-tab navigation and screen routing.
+4. Build the dashboard using real profile and progress data.
+5. Connect curriculum selection, learning paths, and lesson views.
+6. Integrate and validate all three playable games.
+7. Refactor the translator and pronunciation state management.
+8. Integrate saved vocabulary and speech playback.
+9. Build profile, XP, achievements, and leaderboard views.
+10. Add safe persistence and migrations.
+11. Run the acceptance checks and fix defects.
+12. Deliver the completed implementation report.
+
+If a task is too large for one operation, complete it in controlled stages while preserving a working build. Do not replace unfinished functionality with a static mockup and declare the project complete.
+
+---
+
+12. FINAL DELIVERY REQUIREMENTS
+
+Implement the changes directly in the existing project files.
+
+The final application must include:
+
+- The complete five-tab mobile interface.
+- Working navigation and screen views.
+- Reusable React components.
+- Functional learning paths and lesson interactions.
+- Three playable educational games.
+- Translator and pronunciation tools with robust error handling.
+- Persistent student progress and vocabulary.
+- Functional XP and achievement calculations.
+- Responsive RTL/LTR layouts.
+- Correct integration with existing curriculum and question-bank data.
+
+After implementation, report:
+
+1. Major files created or modified.
+2. Features implemented and connected to real data.
+3. Existing features preserved.
+4. Build, TypeScript, lint, and test results, distinguishing checks that were actually run from those not run.
+5. Any remaining blockers, external credentials, or backend requirements.
+6. Any limitations affecting offline use, speech recognition, or shared leaderboards.
+
+FINAL DIRECTIVE: Prioritize a working, integrated, production-oriented application over a visually impressive but nonfunctional mockup. Preserve existing data and working features. Do not stop at the homepage. Complete and validate all five primary screens and their underlying interactions.

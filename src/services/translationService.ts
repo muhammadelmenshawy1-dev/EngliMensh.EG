@@ -1,11 +1,12 @@
 // =========================================================================
 // EngliMensh.EG - Intelligent Translation Service & Bounded Multi-Level Cache
 // System Architect: Mohammad El-Menshawy (محمد المنشاوي)
-// Features: 2-Level Cache (Memory + LocalStorage), 7s Deadline, Abort Cancellation,
-// Concurrency Control, Fallback Pipeline & Friendly Arabic Errors
+// Features: Centralized VITE_API_BASE_URL, 2-Level Cache (Memory + LocalStorage),
+// 7s Deadline, Abort Cancellation, Distinct Egyptian vs MSA Offline Fallbacks
 // =========================================================================
 
 import { TranslationRequest, TranslationResponse, TranslationStyle } from '../types/dictionary';
+import { resolveApiEndpoint } from '../config/apiConfig.ts';
 
 // --- CACHE CONFIGURATION & SCHEMA ---
 const CACHE_STORAGE_KEY = 'englimensh_translation_cache_v2';
@@ -23,6 +24,67 @@ interface CacheItem {
 // In-Memory First-Level Cache
 const inMemoryCache = new Map<string, CacheItem>();
 
+// Built-in Offline Dictionary with distinct MSA and Egyptian Arabic modes
+const OFFLINE_BILINGUAL_DICTIONARY: Record<
+  string,
+  { msa: string; egyptian: string; en: string }
+> = {
+  friend: { msa: 'صديق', egyptian: 'صاحبي / صاحب', en: 'friend' },
+  happy: { msa: 'سعيد', egyptian: 'مبسوط / فرحان', en: 'happy' },
+  school: { msa: 'مدرسة', egyptian: 'مدرسة', en: 'school' },
+  teacher: { msa: 'معلم / أستاذ', egyptian: 'مستر / أستاذ', en: 'teacher' },
+  student: { msa: 'طالب', egyptian: 'طالب', en: 'student' },
+  book: { msa: 'كتاب', egyptian: 'كتاب', en: 'book' },
+  family: { msa: 'عائلة / أسرة', egyptian: 'عيلة / أهل', en: 'family' },
+  water: { msa: 'ماء', egyptian: 'مية', en: 'water' },
+  science: { msa: 'علوم', egyptian: 'علوم', en: 'science' },
+  future: { msa: 'مستقبل', egyptian: 'مستقبل', en: 'future' },
+  success: { msa: 'نجاح', egyptian: 'نجاح وتفوق', en: 'success' },
+  knowledge: { msa: 'معرفة', egyptian: 'معرفة وخبرة', en: 'knowledge' },
+  curriculum: { msa: 'منهج دراسي', egyptian: 'منهج الدراسة', en: 'curriculum' },
+  environment: { msa: 'بيئة', egyptian: 'البيئة', en: 'environment' },
+  technology: { msa: 'تكنولوجيا / تقنية', egyptian: 'تكنولوجيا', en: 'technology' },
+  education: { msa: 'تعليم', egyptian: 'تعليم', en: 'education' },
+  hello: { msa: 'مرحباً / أهلاً', egyptian: 'أهلاً بيك / ازيك', en: 'hello' },
+  welcome: { msa: 'أهلاً بك', egyptian: 'منور / أهلاً بيك', en: 'welcome' },
+  'how are you': { msa: 'كيف حالك؟', egyptian: 'ازيك؟ عامل إيه؟', en: 'how are you?' },
+  'thank you': { msa: 'شكراً جزيلاً لك', egyptian: 'شكراً ليك / كتر خيرك', en: 'thank you' },
+  'good morning': { msa: 'صباح الخير', egyptian: 'صباح الفل / صباح الخير', en: 'good morning' },
+  صديق: { msa: 'صديق', egyptian: 'صاحب', en: 'friend' },
+  سعيد: { msa: 'سعيد', egyptian: 'مبسوط', en: 'happy' },
+  مدرسة: { msa: 'مدرسة', egyptian: 'مدرسة', en: 'school' },
+  معلم: { msa: 'معلم', egyptian: 'مستر', en: 'teacher' },
+  طالب: { msa: 'طالب', egyptian: 'طالب', en: 'student' },
+  كتاب: { msa: 'كتاب', egyptian: 'كتاب', en: 'book' },
+  عائلة: { msa: 'عائلة', egyptian: 'عيلة', en: 'family' },
+  مستقبل: { msa: 'مستقبل', egyptian: 'مستقبل', en: 'future' },
+  نجاح: { msa: 'نجاح', egyptian: 'نجاح', en: 'success' },
+  تعليم: { msa: 'تعليم', egyptian: 'تعليم', en: 'education' },
+  ازيك: { msa: 'كيف حالك', egyptian: 'ازيك', en: 'How are you?' },
+};
+
+export function normalizeTranslationStyle(style?: TranslationStyle | string): TranslationStyle {
+  if (style === 'egyptian' || style === 'egyptian_arabic') {
+    return 'egyptian_arabic';
+  }
+  if (style === 'en') return 'en';
+  return 'msa';
+}
+
+export function lookupOfflineTranslation(
+  text: string,
+  to: 'ar' | 'en',
+  style: TranslationStyle = 'msa'
+): string | null {
+  const key = text.trim().toLowerCase().replace(/[?.!,]/g, '').replace(/\s+/g, ' ');
+  const entry = OFFLINE_BILINGUAL_DICTIONARY[key];
+  if (!entry) return null;
+
+  if (to === 'en') return entry.en;
+  const normalizedStyle = normalizeTranslationStyle(style);
+  return normalizedStyle === 'egyptian_arabic' ? entry.egyptian : entry.msa;
+}
+
 /**
  * Normalizes input text and translation settings into a consistent cache key.
  */
@@ -33,7 +95,8 @@ export function getNormalizedCacheKey(
   style: TranslationStyle = 'msa'
 ): string {
   const cleanText = text.trim().toLowerCase().replace(/\s+/g, ' ');
-  return `v${CACHE_VERSION}_${from}_${to}_${style}_${cleanText}`;
+  const normalizedStyle = normalizeTranslationStyle(style);
+  return `v${CACHE_VERSION}_${from}_${to}_${normalizedStyle}_${cleanText}`;
 }
 
 /**
@@ -63,11 +126,10 @@ function initializeCacheFromStorage(): void {
       }
     }
   } catch {
-    // Gracefully ignore LocalStorage access or parse errors (e.g., private browsing)
+    // Gracefully ignore LocalStorage access or parse errors
   }
 }
 
-// Initialize cache once
 initializeCacheFromStorage();
 
 /**
@@ -89,7 +151,6 @@ export function getCachedTranslation(key: string): TranslationResponse | null {
  * Persists a successful, non-empty translation response into the 2-level cache.
  */
 export function setCachedTranslation(key: string, response: TranslationResponse): void {
-  // Only cache valid, non-empty successful responses
   if (!response || !response.success || !response.translation || !response.translation.trim()) {
     return;
   }
@@ -101,7 +162,6 @@ export function setCachedTranslation(key: string, response: TranslationResponse)
     timestamp: Date.now(),
   };
 
-  // Update In-Memory Cache (LRU prune if over capacity)
   if (inMemoryCache.has(key)) {
     inMemoryCache.delete(key);
   }
@@ -112,7 +172,6 @@ export function setCachedTranslation(key: string, response: TranslationResponse)
     if (oldestKey) inMemoryCache.delete(oldestKey);
   }
 
-  // Sync to LocalStorage Persistence
   try {
     if (typeof localStorage === 'undefined') return;
     const itemsArray = Array.from(inMemoryCache.values());
@@ -141,8 +200,8 @@ let activeAbortController: AbortController | null = null;
 let monotonicRequestId = 0;
 
 /**
- * Translates text with fast response targets, 7s timeout deadlines,
- * AbortController cancellation, 2-level caching, and fallback execution.
+ * Translates text with centralized API base URL resolution, 7s timeout deadlines,
+ * AbortController cancellation, 2-level caching, and offline/online fallback execution.
  */
 export async function translateSentence(
   text: string,
@@ -151,6 +210,8 @@ export async function translateSentence(
   style: TranslationStyle = 'msa'
 ): Promise<TranslationResponse> {
   const cleanText = text.trim();
+  const normalizedStyle = normalizeTranslationStyle(style);
+
   if (!cleanText) {
     return {
       success: true,
@@ -160,13 +221,35 @@ export async function translateSentence(
   }
 
   // 1. Check 2-Level Cache First
-  const cacheKey = getNormalizedCacheKey(cleanText, from, to, style);
+  const cacheKey = getNormalizedCacheKey(cleanText, from, to, normalizedStyle);
   const cachedHit = getCachedTranslation(cacheKey);
   if (cachedHit) {
     return cachedHit;
   }
 
-  // 2. Concurrency Protection & Stale Request Abort
+  // 2. If browser is explicitly offline, check offline bilingual dictionary immediately
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    const offlineWord = lookupOfflineTranslation(cleanText, to, normalizedStyle);
+    if (offlineWord) {
+      const offlineResponse: TranslationResponse = {
+        success: true,
+        translation: offlineWord,
+        detectedSourceLang: from === 'ar' ? 'Arabic' : 'English',
+        styleUsed: normalizedStyle,
+        note: 'تمت الترجمة عبر القاموس المحلي بدون إنترنت.',
+      };
+      setCachedTranslation(cacheKey, offlineResponse);
+      return offlineResponse;
+    }
+    return {
+      success: false,
+      translation: '',
+      detectedSourceLang: from === 'ar' ? 'Arabic' : 'English',
+      error: 'لا يوجد اتصال بالإنترنت حالياً. القاموس المحلي يدعم المفردات الأساسية فقط بدون إنترنت.',
+    };
+  }
+
+  // 3. Concurrency Protection & Stale Request Abort
   if (activeAbortController) {
     try {
       activeAbortController.abort('newer_request_submitted');
@@ -178,10 +261,8 @@ export async function translateSentence(
   const controller = new AbortController();
   activeAbortController = controller;
   const signal = controller.signal;
-
   const currentId = ++monotonicRequestId;
 
-  // 3. 7-Second Deadline Timeout Protection
   let isTimedOut = false;
   const timeoutId = setTimeout(() => {
     if (monotonicRequestId === currentId) {
@@ -190,64 +271,80 @@ export async function translateSentence(
     }
   }, 7000);
 
-  try {
-    // Primary API Route: Server-side Gemini proxy (/api/translate)
-    const res = await fetch('/api/translate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: cleanText,
-        sourceLang: from,
-        targetLang: to,
-        style,
-      }),
-      signal,
-    });
+  const apiResolution = resolveApiEndpoint('/api/translate');
 
-    clearTimeout(timeoutId);
+  if (apiResolution.url) {
+    try {
+      const res = await fetch(apiResolution.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: cleanText,
+          sourceLang: from,
+          targetLang: to,
+          style: normalizedStyle,
+        }),
+        signal,
+      });
 
-    // Ensure stale responses cannot corrupt UI
-    if (currentId !== monotonicRequestId || signal.aborted) {
-      return {
-        success: false,
-        translation: '',
-        detectedSourceLang: from === 'ar' ? 'Arabic' : 'English',
-        error: 'تم إلغاء الطلب.',
-      };
-    }
+      clearTimeout(timeoutId);
 
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.success && data.translation && data.translation.trim()) {
-        const finalResponse: TranslationResponse = {
-          success: true,
-          translation: data.translation.trim(),
-          detectedSourceLang: data.detectedSourceLang || (from === 'ar' ? 'Arabic' : 'English'),
-          styleUsed: data.styleUsed || style,
-          alternativeSenses: data.alternativeSenses || [],
-          note: data.note || '',
+      if (currentId !== monotonicRequestId || signal.aborted) {
+        return {
+          success: false,
+          translation: '',
+          detectedSourceLang: from === 'ar' ? 'Arabic' : 'English',
+          error: 'تم إلغاء الطلب.',
         };
+      }
 
-        // Cache successful response
-        setCachedTranslation(cacheKey, finalResponse);
-        return finalResponse;
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && data.translation && data.translation.trim()) {
+          const finalResponse: TranslationResponse = {
+            success: true,
+            translation: data.translation.trim(),
+            detectedSourceLang: data.detectedSourceLang || (from === 'ar' ? 'Arabic' : 'English'),
+            styleUsed: data.styleUsed || normalizedStyle,
+            alternativeSenses: data.alternativeSenses || [],
+            note: data.note || '',
+          };
+
+          setCachedTranslation(cacheKey, finalResponse);
+          return finalResponse;
+        }
+      }
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+
+      if (currentId !== monotonicRequestId && err !== 'timeout') {
+        return {
+          success: false,
+          translation: '',
+          detectedSourceLang: from === 'ar' ? 'Arabic' : 'English',
+          error: 'تم إلغاء الطلب.',
+        };
       }
     }
-  } catch (err: any) {
+  } else {
     clearTimeout(timeoutId);
-
-    // If aborted due to user typing a newer request, exit early
-    if (currentId !== monotonicRequestId && err !== 'timeout') {
-      return {
-        success: false,
-        translation: '',
-        detectedSourceLang: from === 'ar' ? 'Arabic' : 'English',
-        error: 'تم إلغاء الطلب.',
-      };
-    }
   }
 
-  // 4. Single Controlled Fallback Attempt for Network Failures / Timeouts
+  // 4. Check Offline Bilingual Dictionary (preserves Egyptian vs MSA distinction for core terms)
+  const offlineMatch = lookupOfflineTranslation(cleanText, to, normalizedStyle);
+  if (offlineMatch && currentId === monotonicRequestId) {
+    const offlineResponse: TranslationResponse = {
+      success: true,
+      translation: offlineMatch,
+      detectedSourceLang: from === 'ar' ? 'Arabic' : 'English',
+      styleUsed: normalizedStyle,
+      note: apiResolution.errorArabic || '',
+    };
+    setCachedTranslation(cacheKey, offlineResponse);
+    return offlineResponse;
+  }
+
+  // 5. Controlled Fallback Attempt for Network Failures / Unconfigured Native Backend
   if (currentId === monotonicRequestId) {
     try {
       const fallbackController = new AbortController();
@@ -266,7 +363,8 @@ export async function translateSentence(
               success: true,
               translation: translatedText,
               detectedSourceLang: from === 'ar' ? 'Arabic' : 'English',
-              styleUsed: style,
+              styleUsed: normalizedStyle,
+              note: apiResolution.errorArabic || undefined,
             };
             setCachedTranslation(cacheKey, fallbackResponse);
             return fallbackResponse;
@@ -278,7 +376,6 @@ export async function translateSentence(
     }
   }
 
-  // 5. Friendly Standardized Arabic Error Response
   if (isTimedOut) {
     return {
       success: false,
@@ -292,7 +389,7 @@ export async function translateSentence(
     success: false,
     translation: '',
     detectedSourceLang: from === 'ar' ? 'Arabic' : 'English',
-    error: 'تعذر الاتصال بخدمة الترجمة. يمكنك إعادة المحاولة.',
+    error: apiResolution.errorArabic || 'تعذر الاتصال بخدمة الترجمة. تحقق من الإنترنت وحاول مرة أخرى.',
   };
 }
 

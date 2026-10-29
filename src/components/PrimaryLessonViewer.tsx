@@ -30,6 +30,7 @@ import {
 import { PrimaryLessonContent, PrimaryExamQuestion } from '../data/primaryStageData.ts';
 import { loadUnitProgress, saveLevelProgress, StoredUnitProgress } from '../services/progressStorage.ts';
 import { MediaStorageService } from '../services/mediaStorageService.ts';
+import { speakText, stopSpeaking } from '../utils/speechService.ts';
 import type { VideoLesson } from '../types/videoLesson.ts';
 
 interface Props {
@@ -480,18 +481,15 @@ export const PrimaryLessonViewer: React.FC<Props> = ({ lesson, onExamComplete, o
   const [skillsInputs, setSkillsInputs] = useState<Record<number, string>>({});
   const [skillsRevealed, setSkillsRevealed] = useState<Record<number, boolean>>({});
 
-  // Speech Pronunciation Helper
+  // Speech Pronunciation Helper via unified speechService
   const playAudio = (text: string) => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'en-US';
-      utterance.rate = 0.85; // slightly slower for primary learners
-      setPlayingAudioText(text);
-      utterance.onend = () => setPlayingAudioText(null);
-      utterance.onerror = () => setPlayingAudioText(null);
-      window.speechSynthesis.speak(utterance);
-    }
+    setPlayingAudioText(text);
+    speakText(text, 'en', {
+      rate: 0.85,
+      onStart: () => setPlayingAudioText(text),
+      onEnd: () => setPlayingAudioText(null),
+      onError: () => setPlayingAudioText(null),
+    });
   };
 
   // Real Video Element Reference & Persistent Video Lesson Binding

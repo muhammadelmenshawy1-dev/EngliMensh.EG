@@ -161,6 +161,17 @@ export function getUnitKey(
   stage: EducationalStage,
   grade: number,
   semester: number,
+  unitNumber: number,
+  track?: string
+): string {
+  const sem = Number(semester) || 1;
+  const cleanTrack = track && track !== 'general' ? `_${track}` : '';
+  return `${stage}_${grade}_S${sem}${cleanTrack}_${unitNumber}`;
+}
+
+export function getLegacyUnitKey(
+  stage: EducationalStage,
+  grade: number,
   unitNumber: number
 ): string {
   return `${stage}_${grade}_${unitNumber}`;
@@ -189,13 +200,18 @@ function normalizeUnitProgressMap(
     const reading = Boolean(val.readingDone || val.readingCompleted);
     const listening = Boolean(val.listeningDone || val.listeningCompleted);
     const exam = Boolean(val.examDone || val.examCompleted);
-    result[k] = {
-      unitKey: val.unitKey || k,
-      stage: val.stage || 'Secondary',
-      grade: Number(val.grade) || 10,
-      semester: Number(val.semester) || 1,
-      unitNumber: Number(val.unitNumber) || 1,
-      unitTitle: val.unitTitle || `Unit ${val.unitNumber || 1}`,
+    const stage: EducationalStage = val.stage || 'Secondary';
+    const grade = Number(val.grade) || 10;
+    const semester = Number(val.semester) || 1;
+    const unitNumber = Number(val.unitNumber) || 1;
+    const canonicalKey = getUnitKey(stage, grade, semester, unitNumber, val.track);
+    const node: UnitNodeProgress = {
+      unitKey: canonicalKey,
+      stage,
+      grade,
+      semester,
+      unitNumber,
+      unitTitle: val.unitTitle || `Unit ${unitNumber}`,
       unitTitleAr: val.unitTitleAr || '',
       vocabDone: vocab,
       grammarDone: grammar,
@@ -211,6 +227,9 @@ function normalizeUnitProgressMap(
       lastModule: val.lastModule,
       lastAccessedAt: val.lastAccessedAt || new Date().toISOString(),
     };
+    result[canonicalKey] = node;
+    // Maintain backward-compatible key lookup for callers using legacy key format
+    result[k] = node;
   }
   return result;
 }
@@ -234,12 +253,12 @@ export function loadLearningState(): LearningState {
     }
   }
 
-  const baseXp = student?.totalScore ?? 350;
-  const baseStreak = student?.highStreak ? Math.max(1, student.highStreak) : 5;
-  const baseName = student?.name || 'عمر محمد';
+  const baseXp = student?.totalScore ?? 0;
+  const baseStreak = student?.highStreak ? Math.max(0, student.highStreak) : 0;
+  const baseName = student?.name || 'طالب جديد';
 
   const defaultState: LearningState = {
-    version: 1,
+    version: 2,
     nickname: baseName,
     avatar: '👦',
     avatarEmoji: '👦',
@@ -309,21 +328,39 @@ export function loadLearningState(): LearningState {
           parsed.preferredStage || parsed.selectedStage || initialStage;
         const gradeVal: number =
           Number(parsed.preferredGrade || parsed.selectedGrade) || initialGrade;
-        const streakVal = Math.max(
-          1,
-          Number(parsed.streakDays ?? parsed.currentStreak ?? baseStreak)
-        );
-        const xpVal = Math.max(
-          Number(parsed.xp ?? 0),
-          student?.totalScore ?? 0,
-          350
-        );
+
+        const hasRealActivities =
+          Object.keys(parsed.completedActivityIds || {}).length > 0 ||
+          lessonsCount > 0 ||
+          totalGamesWon > 0 ||
+          Boolean(student?.examHistory && student.examHistory.length > 0) ||
+          Boolean(student?.gamesPlayed && student.gamesPlayed > 0);
+
+        const isUntouchedLegacyFabricatedSeed =
+          (!parsed.version || parsed.version < 2) &&
+          !hasRealActivities &&
+          (parsed.nickname === 'عمر محمد' || !parsed.nickname) &&
+          Number(parsed.xp) === 350;
+
+        const streakVal = isUntouchedLegacyFabricatedSeed
+          ? 0
+          : Math.max(
+              0,
+              Number(parsed.streakDays ?? parsed.currentStreak ?? baseStreak)
+            );
+        const xpVal = isUntouchedLegacyFabricatedSeed
+          ? Number(student?.totalScore ?? 0)
+          : Math.max(Number(parsed.xp ?? 0), Number(student?.totalScore ?? 0));
+        const resolvedNickname = isUntouchedLegacyFabricatedSeed
+          ? student?.name || 'طالب جديد'
+          : student?.name || parsed.nickname || baseName;
         const avatarVal = parsed.avatar || parsed.avatarEmoji || '👦';
 
         const merged: LearningState = {
           ...defaultState,
           ...parsed,
-          nickname: student?.name || parsed.nickname || baseName,
+          version: 2,
+          nickname: resolvedNickname,
           avatar: avatarVal,
           avatarEmoji: avatarVal,
           selectedStage: stageVal,
@@ -344,6 +381,10 @@ export function loadLearningState(): LearningState {
           unlockedBadgeDates:
             parsed.unlockedBadgeDates || defaultState.unlockedBadgeDates,
         };
+
+        if (isUntouchedLegacyFabricatedSeed) {
+          saveLearningState(merged);
+        }
 
         if (!merged.dailyQuest || merged.dailyQuest.dateStr !== today) {
           merged.dailyQuest = createDefaultDailyQuest(today, merged.preferredStage);
@@ -475,16 +516,16 @@ export function awardProtectedXP(
   }
 
   if (xpAwarded > 0) {
-    state.xp = (state.xp || 350) + xpAwarded;
+    state.xp = (state.xp || 0) + xpAwarded;
     const currentStd = getStoredStudent();
     if (currentStd) {
       createOrUpdateStudent({
         totalScore: Math.max(state.xp, (currentStd.totalScore || 0) + xpAwarded),
         highStreak: Math.max(currentStd.highStreak || 0, state.streakDays),
       });
-    } else {
+    } else if (state.nickname && state.nickname !== 'طالب جديد') {
       createOrUpdateStudent({
-        name: state.nickname || 'عمر محمد',
+        name: state.nickname,
         totalScore: state.xp,
         highStreak: state.streakDays,
       });
@@ -945,6 +986,7 @@ export function resetStudentLearningProgress(): LearningState {
       localStorage.removeItem('englimensh_arcade_progress_v2');
       localStorage.removeItem('englimensh_local_leaderboard_v1');
       localStorage.removeItem('egypt_moe_student_progress_v2');
+      localStorage.removeItem('egypt_moe_student_progress_v3');
 
       const currentStd = getStoredStudent();
       if (currentStd) {
@@ -952,7 +994,7 @@ export function resetStudentLearningProgress(): LearningState {
           ...currentStd,
           totalScore: 0,
           gamesPlayed: 0,
-          highStreak: 1,
+          highStreak: 0,
           badges: ['first_step'],
           examHistory: [],
         });

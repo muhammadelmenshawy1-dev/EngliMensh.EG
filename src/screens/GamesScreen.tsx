@@ -9,6 +9,7 @@ import {
 } from '../types/gameQuestions.ts';
 import { GamesArena, ActiveGameId } from '../components/games/GamesArena.tsx';
 import { StudentProfile } from '../types.ts';
+import { registerBackNavigationHandler } from '../utils/navigationHistory.ts';
 
 interface GamesScreenProps {
   student?: StudentProfile | null;
@@ -41,6 +42,17 @@ export const GamesScreen: React.FC<GamesScreenProps> = ({
       setActiveGame(activeLaunchedGame);
     }
   }, [activeLaunchedGame]);
+
+  // Register back navigation handler when an arcade game is active
+  useEffect(() => {
+    if (!activeGame) return;
+    const unregister = registerBackNavigationHandler('games-arena-active', () => {
+      setActiveGame(null);
+      onGameClosed?.();
+      return true;
+    });
+    return unregister;
+  }, [activeGame, onGameClosed]);
 
   const getGradesForStage = (stage: EducationalStage): number[] => {
     if (stage === 'Primary') return [1, 2, 3, 4, 5, 6];
