@@ -1,6 +1,6 @@
-import { Home, BookOpen, Gamepad2, Trophy, User, ShieldCheck, Award } from 'lucide-react';
+import React from 'react';
+import { Home, BookOpen, Gamepad2, Wrench, User } from 'lucide-react';
 import { MainAppTab, StudentProfile } from '../types.ts';
-import { isTeacherEmail } from '../services/studentStorage.ts';
 
 interface BottomNavBarProps {
   activeTab: MainAppTab;
@@ -11,107 +11,93 @@ interface BottomNavBarProps {
 export const BottomNavBar: React.FC<BottomNavBarProps> = ({
   activeTab,
   onTabChange,
-  student,
 }) => {
-  const isTeacher = isTeacherEmail(student?.email) || student?.role === 'teacher';
-
-  const tabs = [
+  const tabs: Array<{
+    id: MainAppTab;
+    labelAr: string;
+    icon: React.FC<{ className?: string }>;
+  }> = [
     {
-      id: 'home' as MainAppTab,
-      label: 'Home',
+      id: 'home',
+      labelAr: 'الرئيسية',
       icon: Home,
     },
     {
-      id: 'curricula' as MainAppTab,
-      label: 'Curricula',
+      id: 'curricula',
+      labelAr: 'المناهج',
       icon: BookOpen,
-      badge: 'Sec 1',
     },
     {
-      id: 'exams' as MainAppTab,
-      label: 'Exams',
-      icon: Award,
-    },
-    {
-      id: 'games' as MainAppTab,
-      label: 'Games',
+      id: 'games',
+      labelAr: 'الألعاب',
       icon: Gamepad2,
-      sparkle: true,
     },
     {
-      id: 'leaderboard' as MainAppTab,
-      label: 'Ranks',
-      icon: Trophy,
-      badge: student?.examHistory?.length ? `${student.examHistory.length}` : undefined,
+      id: 'tools',
+      labelAr: 'الأدوات',
+      icon: Wrench,
     },
     {
-      id: 'profile' as MainAppTab,
-      label: 'Profile',
+      id: 'profile',
+      labelAr: 'حسابي',
       icon: User,
     },
-    ...(isTeacher
-      ? [
-          {
-            id: 'teacher' as MainAppTab,
-            label: 'Teacher',
-            icon: ShieldCheck,
-            badge: 'Admin',
-          },
-        ]
-      : []),
   ];
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-40 bg-[#07224D]/95 backdrop-blur-xl border-t border-blue-900/50 text-blue-200 shadow-2xl transition-all select-none"
-      aria-label="Main Navigation"
-      dir="ltr"
+      className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xl border-t border-[#E2E8F0] text-[#64748B] shadow-[0_-6px_20px_rgba(15,23,42,0.08)] select-none pb-[env(safe-area-inset-bottom)]"
+      aria-label="التنقل الرئيسي"
+      dir="rtl"
     >
-      <div className="max-w-md mx-auto sm:max-w-xl px-2 sm:px-6">
-        <div className="flex items-center justify-around h-16 sm:h-18">
+      <div className="max-w-lg mx-auto px-2 sm:px-4">
+        <div className="flex items-center justify-around h-16">
           {tabs.map((tab) => {
             const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
+            const isTabActive =
+              activeTab === tab.id ||
+              (tab.id === 'curricula' && (activeTab as string) === 'exams') ||
+              (tab.id === 'tools' &&
+                ((activeTab as string) === 'translator' ||
+                  (activeTab as string) === 'dictionary')) ||
+              (tab.id === 'profile' && (activeTab as string) === 'leaderboard');
 
             return (
               <button
-                key={tab.id}
+                key={`bottom_nav_${tab.id}`}
+                type="button"
                 onClick={() => onTabChange(tab.id)}
-                className={`relative flex flex-col items-center justify-center flex-1 h-full py-1 transition-all duration-200 group cursor-pointer ${
-                  isActive ? 'text-[#FFC928] font-bold scale-105' : 'text-blue-200/70 hover:text-white'
+                aria-current={isTabActive ? 'page' : undefined}
+                className={`relative flex flex-col items-center justify-center flex-1 min-h-[48px] py-1.5 rounded-2xl transition-all duration-200 cursor-pointer ${
+                  isTabActive
+                    ? 'text-[#1E3A8A] font-black'
+                    : 'text-[#64748B] hover:text-[#0F172A]'
                 }`}
               >
-                {/* Active Indicator Top Glow Bar */}
-                {isActive && (
-                  <span className="absolute top-0 w-8 sm:w-10 h-1 bg-[#FFC928] rounded-full shadow-[0_0_12px_rgba(255,201,40,0.9)]" />
+                {isTabActive && (
+                  <span className="absolute top-0 w-10 h-1 bg-gradient-to-r from-[#1E3A8A] to-[#F59E0B] rounded-full" />
                 )}
 
-                {/* Icon with capsule highlight when active */}
                 <div
                   className={`relative p-1.5 rounded-xl transition-all duration-200 flex items-center justify-center ${
-                    isActive
-                      ? 'bg-[#FFC928]/20 text-[#FFC928] ring-1 ring-[#FFC928]/40'
-                      : 'group-hover:bg-blue-900/40'
+                    isTabActive
+                      ? 'bg-[#1E3A8A]/10 text-[#1E3A8A]'
+                      : 'hover:bg-slate-100'
                   }`}
                 >
-                  <Icon className={`w-5 h-5 sm:w-5.5 sm:h-5.5 transition-transform ${isActive ? 'scale-110' : ''}`} />
-
-                  {/* Sparkle badge for Games */}
-                  {tab.sparkle && !isActive && (
-                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-amber-400 rounded-full animate-ping opacity-75" />
-                  )}
-
-                  {/* Count badge for completed exams */}
-                  {tab.badge && (
-                    <span className="absolute -top-1.5 -right-2 px-1.5 py-0.2 rounded-full bg-blue-600 text-white text-[9px] font-bold shadow-xs">
-                      {tab.badge}
-                    </span>
-                  )}
+                  <Icon
+                    className={`w-5 h-5 transition-transform ${
+                      isTabActive ? 'scale-110 stroke-[2.5]' : ''
+                    }`}
+                  />
                 </div>
 
-                {/* English Label */}
-                <span className="text-[10px] sm:text-xs font-semibold tracking-tight leading-tight mt-0.5">
-                  {tab.label}
+                <span
+                  className={`text-[11px] sm:text-xs tracking-tight mt-0.5 ${
+                    isTabActive ? 'text-[#1E3A8A] font-black' : 'text-[#64748B] font-semibold'
+                  }`}
+                >
+                  {tab.labelAr}
                 </span>
               </button>
             );

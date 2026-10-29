@@ -60,6 +60,101 @@ function createStandardExams(
   return levels.map(level => {
     const qKey = `l${level}` as keyof typeof sampleQuestions;
     const curQ = sampleQuestions[qKey];
+    const nextLevel = ((level % 5) + 1) as 1 | 2 | 3 | 4 | 5;
+    const nextQ = sampleQuestions[`l${nextLevel}` as keyof typeof sampleQuestions];
+
+    // Deterministically rotate curQ options so correct answer is distributed across 0, 1, 2, 3
+    const baseOpts = curQ.opts.length === 4 ? [...curQ.opts] : ['Option A', 'Option B', 'Option C', 'Option D'];
+    const origAnsText = baseOpts[curQ.ans[0] ?? 0] || baseOpts[0];
+    const shift1 = (unitId + level) % 4;
+    const rotOpts1 = [
+      baseOpts[(0 - shift1 + 4) % 4],
+      baseOpts[(1 - shift1 + 4) % 4],
+      baseOpts[(2 - shift1 + 4) % 4],
+      baseOpts[(3 - shift1 + 4) % 4]
+    ];
+    const newAns1 = [Math.max(0, rotOpts1.indexOf(origAnsText))];
+
+    // Rotate nextQ options for q2 so each level has a genuine unit-specific second question
+    const nextBaseOpts = nextQ.opts.length === 4 ? [...nextQ.opts] : ['Option A', 'Option B', 'Option C', 'Option D'];
+    const nextOrigAnsText = nextBaseOpts[nextQ.ans[0] ?? 0] || nextBaseOpts[0];
+    const shift2 = (unitId + level + 1) % 4;
+    const rotOpts2 = [
+      nextBaseOpts[(0 - shift2 + 4) % 4],
+      nextBaseOpts[(1 - shift2 + 4) % 4],
+      nextBaseOpts[(2 - shift2 + 4) % 4],
+      nextBaseOpts[(3 - shift2 + 4) % 4]
+    ];
+    const newAns2 = [Math.max(0, rotOpts2.indexOf(nextOrigAnsText))];
+
+    const grammarBankByLevel: Record<1 | 2 | 3 | 4 | 5, { q: string; opts: string[]; ans: number[]; exp: string }> = {
+      1: {
+        q: `Choose the grammatically accurate completion: "Hardly had the medical team arrived at the emergency ward __________ the triage procedure began."`,
+        opts: ['than', 'when', 'then', 'where'],
+        ans: [1],
+        exp: 'The correlative past perfect inversion structure is "Hardly had + subject + P.P. ... when + Past Simple".'
+      },
+      2: {
+        q: `Complete the sentence: "No sooner __________ the research findings than international universities invited her to lecture."`,
+        opts: ['she had published', 'did she published', 'had she published', 'has she publish'],
+        ans: [2],
+        exp: 'After "No sooner" at the beginning of a sentence, we invert the past perfect auxiliary: "had + subject + P.P.".'
+      },
+      3: {
+        q: `Identify the correct structure: "Not only __________ the national archive, but it also digitized rare historical manuscripts."`,
+        opts: ['the ministry restored', 'restored the ministry', 'has the ministry restore', 'did the ministry restore'],
+        ans: [3],
+        exp: 'When a sentence begins with "Not only", the first clause takes inverted auxiliary order: "did + subject + base verb".'
+      },
+      4: {
+        q: `In formal examination style, what is the best completion for: "Never before __________ such groundbreaking scientific developments in renewable energy."?`,
+        opts: ['have we witnessed', 'we have witnessed', 'did we witnessed', 'we had witnessing'],
+        ans: [0],
+        exp: 'Inversion after negative adverbial "Never before": auxiliary verb + subject + past participle.'
+      },
+      5: {
+        q: `Choose the grammatically accurate clause: "Were the committee __________ the proposal today, construction would commence next month."`,
+        opts: ['approving', 'to approve', 'approved', 'approve'],
+        ans: [1],
+        exp: 'In inverted Second Conditional structures beginning with "Were", we use "Were + subject + to + infinitive".'
+      }
+    };
+
+    const vocabBankByLevel: Record<1 | 2 | 3 | 4 | 5, { q: string; opts: string[]; ans: number[]; exp: string }> = {
+      1: {
+        q: `In formal academic writing on "${unitTitle}", which pair of adjectives best describes evidence-based conclusions?`,
+        opts: ['reckless and speculative', 'obsolete and fraudulent', 'indispensable and substantiated', 'negligent and superficial'],
+        ans: [2],
+        exp: '"Indispensable and substantiated" means essential and supported by verified proof.'
+      },
+      2: {
+        q: `Choose the correct formal collocation related to "${unitTitle}": "Citizens and institutions must ______ sustainable initiatives to achieve lasting progress."`,
+        opts: ['implement', 'fabricate', 'squander', 'undermine'],
+        ans: [0],
+        exp: '"Implement initiatives" is the standard formal collocation meaning to put plans into effect.'
+      },
+      3: {
+        q: `Which noun best completes the sentence on "${unitTitle}": "Overcoming modern challenges requires strong ______ and continuous skill development."`,
+        opts: ['resilience', 'negligence', 'complacency', 'obscurity'],
+        ans: [0],
+        exp: '"Resilience" means the capacity to recover quickly from difficulties and adapt.'
+      },
+      4: {
+        q: `Select the closest academic synonym for "crucial" in the context of "${unitTitle}": "Accurate data analysis plays a ______ role in national development."`,
+        opts: ['trivial', 'pivotal', 'redundant', 'dubious'],
+        ans: [1],
+        exp: '"Pivotal" means of crucial importance in relation to the development or success of something.'
+      },
+      5: {
+        q: `Choose the correct adverbial collocation: "Researchers ______ evaluated the long-term impact of the project before publishing their report."`,
+        opts: ['rigorously', 'carelessly', 'reluctantly', 'superficially'],
+        ans: [0],
+        exp: '"Rigorously evaluated" means assessed thoroughly and accurately.'
+      }
+    };
+
+    const gItem = grammarBankByLevel[level];
+    const vItem = vocabBankByLevel[level];
 
     const exam: Exam = {
       id: `s${grade === 11 ? '2' : '3'}_u${unitId}_l${level}`,
@@ -81,8 +176,8 @@ function createStandardExams(
           difficulty: level >= 3 ? 'hots' : 'standard',
           skill: 'Vocabulary',
           question: curQ.q,
-          options: curQ.opts,
-          correctAnswers: curQ.ans,
+          options: rotOpts1,
+          correctAnswers: newAns1,
           explanation: curQ.exp,
           exam_trap_explanation: 'Exam Trap (فخ الامتحان): Do not choose options based solely on familiar sound. Confirm contextual connotation and idiomatic collocation.',
           examTrapExplanationAr: 'فخ الامتحان: تجنب اختيار الكلمات المألوفة سمعياً دون التأكد من السياق الدلالي وحروف الجر المصاحبة.',
@@ -94,16 +189,11 @@ function createStandardExams(
           question_type: 'mcq',
           difficulty: level >= 3 ? 'hots' : 'standard',
           skill: 'Grammar',
-          question: `Regarding ${grammarRule}, identify the grammatically correct sentence structure:`,
-          options: [
-            `The researcher successfully mastered ${grammarRule} in academic reporting.`,
-            `The researcher were mastering without empirical analysis.`,
-            `The researcher have not applying the structural guidelines correctly.`,
-            `The researcher do not understood the core principles.`
-          ],
-          correctAnswers: [0],
-          explanation: `Demonstrates precise structural accuracy and subject-verb agreement according to official ${grammarRule} rules.`,
-          exam_trap_explanation: `Exam Trap (فخ الامتحان): The Ministry test frequently combines subject-verb agreement with compound subjects or intervening prepositional phrases to distract you.`,
+          question: `[${unitTitle} — Applied Focus] ${nextQ.q}`,
+          options: rotOpts2,
+          correctAnswers: newAns2,
+          explanation: nextQ.exp,
+          exam_trap_explanation: `Exam Trap (فخ الامتحان): Verify both the grammatical time marker and the structural rule for ${grammarRule}.`,
           points: 2
         },
         {
@@ -112,11 +202,11 @@ function createStandardExams(
           question_type: 'mcq',
           difficulty: level >= 3 ? 'hots' : 'standard',
           skill: 'Vocabulary',
-          question: `Which option demonstrates the precise academic synonym relevant to the theme of ${unitTitle}?`,
-          options: ['indispensable and substantiated', 'reckless and speculative', 'obsolete and fraudulent', 'negligent and superficial'],
-          correctAnswers: [0],
-          explanation: 'Accurate contextual terminology elevates analytical expression and writing quality.',
-          exam_trap_explanation: 'Exam Trap: Antonyms often look identical in length and formality; double-check whether the question demands a synonym or antonym.',
+          question: vItem.q,
+          options: vItem.opts,
+          correctAnswers: vItem.ans,
+          explanation: vItem.exp,
+          exam_trap_explanation: 'Exam Trap: Antonyms often look identical in length and formality; double-check whether the context requires positive or negative connotation.',
           points: 2
         },
         {
@@ -125,17 +215,44 @@ function createStandardExams(
           question_type: 'mcq',
           difficulty: 'hots',
           skill: 'Grammar',
-          question: `In standard high-school examination style, what is the best completion for: "Never before __________ such groundbreaking scientific developments."?`,
-          options: ['have we witnessed', 'we have witnessed', 'did we witnessed', 'we had witnessing'],
-          correctAnswers: [0],
-          explanation: 'Inversion after negative adverbial "Never before": auxiliary verb + subject + past participle.',
-          exam_trap_explanation: 'Exam Trap (فخ الامتحان): After negative adverbials at the beginning of a clause, always use inverted question order (Auxiliary + Subject + Verb), not normal statement order.',
+          question: gItem.q,
+          options: gItem.opts,
+          correctAnswers: gItem.ans,
+          explanation: gItem.exp,
+          exam_trap_explanation: 'Exam Trap (فخ الامتحان): After negative or restrictive adverbials at the beginning of a clause, use inverted question order (Auxiliary + Subject + Verb).',
           points: 2
         }
       ]
     };
 
     if (level >= 3) {
+      const r1BaseOpts = readingPassage.opts.length === 4 ? [...readingPassage.opts] : ['Option A', 'Option B', 'Option C', 'Option D'];
+      const r1OrigText = r1BaseOpts[readingPassage.ans[0] ?? 0] || r1BaseOpts[0];
+      const r1Shift = (unitId + level + 2) % 4;
+      const r1RotOpts = [
+        r1BaseOpts[(0 - r1Shift + 4) % 4],
+        r1BaseOpts[(1 - r1Shift + 4) % 4],
+        r1BaseOpts[(2 - r1Shift + 4) % 4],
+        r1BaseOpts[(3 - r1Shift + 4) % 4]
+      ];
+      const r1NewAns = [Math.max(0, r1RotOpts.indexOf(r1OrigText))];
+
+      const r2BaseOpts = [
+        'To analyze systemic societal and scientific transformations with empirical rigor',
+        'To promote commercial brand advertising without factual basis',
+        'To discourage young learners from studying modern technology',
+        'To entertain readers with unverified urban legends'
+      ];
+      const r2OrigText = r2BaseOpts[0];
+      const r2Shift = (unitId + level + 3) % 4;
+      const r2RotOpts = [
+        r2BaseOpts[(0 - r2Shift + 4) % 4],
+        r2BaseOpts[(1 - r2Shift + 4) % 4],
+        r2BaseOpts[(2 - r2Shift + 4) % 4],
+        r2BaseOpts[(3 - r2Shift + 4) % 4]
+      ];
+      const r2NewAns = [Math.max(0, r2RotOpts.indexOf(r2OrigText))];
+
       // 2 Unseen Reading Comprehension Passages for Level 4 & 5 (Factual/Narrative + Analytical)
       const primaryPassage: ReadingSection = {
         passageTitle: readingPassage.title,
@@ -151,8 +268,8 @@ function createStandardExams(
             difficulty: 'standard',
             skill: 'Reading',
             question: readingPassage.q,
-            options: readingPassage.opts,
-            correctAnswers: readingPassage.ans,
+            options: r1RotOpts,
+            correctAnswers: r1NewAns,
             explanation: readingPassage.exp,
             exam_trap_explanation: 'Exam Trap: Look for direct textual evidence rather than applying your own external personal assumptions.',
             points: 2
@@ -164,13 +281,8 @@ function createStandardExams(
             difficulty: 'hots',
             skill: 'Reading',
             question: 'What is the primary rhetorical objective and author’s tone in the passage?',
-            options: [
-              'To analyze systemic societal and scientific transformations with empirical rigor',
-              'To promote commercial brand advertising without factual basis',
-              'To discourage young learners from studying modern technology',
-              'To entertain readers with unverified urban legends'
-            ],
-            correctAnswers: [0],
+            options: r2RotOpts,
+            correctAnswers: r2NewAns,
             explanation: 'The passage adopts an analytical, evidence-based academic approach to societal transformation.',
             exam_trap_explanation: 'Exam Trap: Distinguish between the central thesis and minor illustrative anecdotes used as supporting examples.',
             points: 2

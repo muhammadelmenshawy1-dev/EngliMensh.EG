@@ -6,15 +6,7 @@ const SUBMISSIONS_KEY = 'englimensh_subjective_submissions_v1';
 const LEGACY_NAME_KEY = 'englimensh_student_name';
 const LEGACY_GROUP_KEY = 'englimensh_student_group';
 
-export const TEACHER_EMAIL = 'muhammadelmenshawy1@gmail.com';
 
-/**
- * Checks whether the given email corresponds to the authorized teacher / admin.
- */
-export const isTeacherEmail = (email?: string | null): boolean => {
-  if (!email) return false;
-  return email.trim().toLowerCase() === TEACHER_EMAIL.toLowerCase();
-};
 
 export const ALL_BADGES: BadgeDefinition[] = [
   {
@@ -95,7 +87,7 @@ export const getStoredStudent = (): StudentProfile | null => {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.name) {
         const email = parsed.email || '';
-        const role = isTeacherEmail(email) ? 'teacher' : (parsed.role || 'student');
+        const role = 'student';
 
         const studentId = parsed.id || `std_${Date.now()}`;
         const storedAvatar = getStudentAvatar(studentId) || parsed.avatarUrl;
@@ -189,7 +181,7 @@ export const saveStudent = (profile: StudentProfile): void => {
   if (typeof window === 'undefined') return;
   try {
     const email = profile.email || '';
-    const role = isTeacherEmail(email) ? 'teacher' : (profile.role || 'student');
+    const role = 'student';
     const updated: StudentProfile = {
       ...profile,
       email,
@@ -242,7 +234,7 @@ export const createOrUpdateStudent = (data: Partial<StudentProfile>): StudentPro
   const current = getStoredStudent();
   const now = new Date().toISOString();
   const email = data.email !== undefined ? data.email.trim() : (current?.email || '');
-  const role = isTeacherEmail(email) ? 'teacher' : (data.role || current?.role || 'student');
+  const role = 'student';
 
   const profile: StudentProfile = {
     id: current?.id || data.id || `std_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -715,7 +707,7 @@ export const getAllRegisteredStudents = (): StudentProfile[] => {
  * Update or insert a student into the registry.
  */
 export const updateStudentInRegistry = (student: StudentProfile): void => {
-  if (typeof window === 'undefined' || isTeacherEmail(student.email)) return;
+  if (typeof window === 'undefined') return;
 
   try {
     const students = getAllRegisteredStudents();

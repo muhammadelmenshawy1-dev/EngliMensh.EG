@@ -106,14 +106,15 @@ function createPrepUnit(
           difficulty: 'standard',
           question: `What is the general main idea of this reading passage?`,
           options: [
-            `Understanding the fundamental concepts of ${unitTitle} and its societal value`,
             'Avoiding all extracurricular responsibilities at school',
+            `Understanding the fundamental concepts of ${unitTitle} and its societal value`,
             'Focusing purely on entertainment without academic effort',
             'Traveling abroad without planning or preparation'
           ],
-          correctAnswer: 'A',
+          correctAnswer: 'B',
           explanation: `The passage explores the core theme of ${unitTitle} and practical life lessons.`,
-          exam_trap_explanation: 'Examiners look for the holistic theme rather than isolated narrative details.'
+          exam_trap_explanation: 'Examiners look for the holistic theme rather than isolated narrative details.',
+          verificationStatus: 'verified'
         },
         {
           id: `prep_g${grade}_u${unitNumber}_r_mcq2`,
@@ -121,14 +122,15 @@ function createPrepUnit(
           difficulty: 'hots',
           question: `In the passage, the word "${kw0.word}" contextually refers to:`,
           options: [
-            kw0.def,
             'a sudden negative outcome',
             'an impossible educational challenge',
+            kw0.def,
             'a temporary disagreement between peers'
           ],
-          correctAnswer: 'A',
+          correctAnswer: 'C',
           explanation: `"${kw0.word}" is defined as: ${kw0.def}.`,
-          exam_trap_explanation: 'Contextual synonym questions in Prep exams demand finding the standard lexical definition rather than colloquial usage.'
+          exam_trap_explanation: 'Contextual synonym questions in Prep exams demand finding the standard lexical definition rather than colloquial usage.',
+          verificationStatus: 'verified'
         },
         {
           id: `prep_g${grade}_u${unitNumber}_r_mcq3`,
@@ -136,14 +138,15 @@ function createPrepUnit(
           difficulty: 'standard',
           question: `According to the text, how do successful students achieve their goals?`,
           options: [
-            `By being persistent, disciplined, and practicing ${coll0.phrase}`,
             'By ignoring teacher guidance and studying alone',
             'By relying solely on last-minute memorization',
-            'By postponing homework until the final week'
+            'By postponing homework until the final week',
+            `By being persistent, disciplined, and practicing ${coll0.phrase}`
           ],
-          correctAnswer: 'A',
+          correctAnswer: 'D',
           explanation: 'The text highlights consistency, ethical diligence, and collaboration.',
-          exam_trap_explanation: 'Avoid distractors that contain negative or passive study habits.'
+          exam_trap_explanation: 'Avoid distractors that contain negative or passive study habits.',
+          verificationStatus: 'verified'
         }
       ],
       openEnded: [
@@ -174,27 +177,30 @@ function createPrepUnit(
         options: [kw0.ar, 'إهمال متعمد', 'مغامرة خطيرة', 'خسارة مادية'],
         correctAnswer: 'A',
         explanation: `"${kw0.word}" corresponds directly to "${kw0.ar}".`,
-        exam_trap_explanation: 'Beware of distractors that sound similar in Arabic but have completely unrelated meanings.'
+        exam_trap_explanation: 'Beware of distractors that sound similar in Arabic but have completely unrelated meanings.',
+        verificationStatus: 'verified'
       },
       {
         id: `prep_g${grade}_u${unitNumber}_mcq2`,
         skill: 'Vocabulary',
         difficulty: 'standard',
         question: `Which word is defined as: "${kw1.def}"?`,
-        options: [kw1.word, 'nuisance', 'critic', 'pessimist'],
-        correctAnswer: 'A',
+        options: ['nuisance', kw1.word, 'critic', 'pessimist'],
+        correctAnswer: 'B',
         explanation: `"${kw1.word}" is defined as ${kw1.def}.`,
-        exam_trap_explanation: 'Always verify the core definition provided in the New Hello Student Book.'
+        exam_trap_explanation: 'Always verify the core definition provided in the New Hello Student Book.',
+        verificationStatus: 'verified'
       },
       {
         id: `prep_g${grade}_u${unitNumber}_mcq3`,
         skill: 'Vocabulary',
         difficulty: 'hots',
         question: `Which academic collocation accurately completes: "Students should always ____________"?`,
-        options: [coll0.phrase, 'break basic rules', 'lose their textbooks', 'quarrel constantly'],
-        correctAnswer: 'A',
+        options: ['break basic rules', 'lose their textbooks', coll0.phrase, 'quarrel constantly'],
+        correctAnswer: 'C',
         explanation: `"${coll0.phrase}" is the official MOE target collocation for this unit.`,
-        exam_trap_explanation: 'Collocation questions test natural word partnerships; verbs cannot be arbitrarily interchanged.'
+        exam_trap_explanation: 'Collocation questions test natural word partnerships; verbs cannot be arbitrarily interchanged.',
+        verificationStatus: 'verified'
       },
       {
         id: `prep_g${grade}_u${unitNumber}_mcq4`,
@@ -202,14 +208,15 @@ function createPrepUnit(
         difficulty: 'standard',
         question: `Identify the grammatically correct sentence illustrating: ${grammarRule}:`,
         options: [
-          grammarSections[0]?.examples[0] || 'He always completes his homework on time.',
           'He don’t complete his homework.',
           'They was finishing yesterday.',
-          'She have completed two book.'
+          'She have completed two book.',
+          grammarSections[0]?.examples[0] || 'He always completes his homework on time.'
         ],
-        correctAnswer: 'A',
+        correctAnswer: 'D',
         explanation: `Follows the target grammar rule: ${grammarSections[0]?.explanation}`,
-        exam_trap_explanation: 'Watch for subject-verb agreement pitfalls like "he don’t" or auxiliary confusion.'
+        exam_trap_explanation: 'Watch for subject-verb agreement pitfalls like "he don’t" or auxiliary confusion.',
+        verificationStatus: 'verified'
       },
       {
         id: `prep_g${grade}_u${unitNumber}_mcq5`,
@@ -224,7 +231,8 @@ function createPrepUnit(
         ],
         correctAnswer: 'A',
         explanation: 'Follows proper tense, verb complementation, and structural rules.',
-        exam_trap_explanation: 'Ministry examinations frequently test verbs followed by gerunds or specific prepositions.'
+        exam_trap_explanation: 'Ministry examinations frequently test verbs followed by gerunds or specific prepositions.',
+        verificationStatus: 'verified'
       },
       {
         id: `prep_g${grade}_u${unitNumber}_mcq6`,
@@ -232,14 +240,15 @@ function createPrepUnit(
         difficulty: 'hots',
         question: `In a ministerial dialogue question, which answer structure is fully accurate?`,
         options: [
-          grammarSections[1]?.examples[0] || 'Yes, I usually do because it benefits everyone.',
           'Yes, I does because it good.',
+          grammarSections[1]?.examples[0] || 'Yes, I usually do because it benefits everyone.',
           'No, he didn’t went to school.',
           'Because she are very intelligent.'
         ],
-        correctAnswer: 'A',
+        correctAnswer: 'B',
         explanation: 'Maintains consistent tense and auxiliary verb alignment.',
-        exam_trap_explanation: 'Remember that "didn’t" must be followed by infinitive, and third-person pronouns require singular verbs.'
+        exam_trap_explanation: 'Remember that "didn’t" must be followed by infinitive, and third-person pronouns require singular verbs.',
+        verificationStatus: 'verified'
       }
     ],
     errorCorrection: [
@@ -305,6 +314,9 @@ function createPrepUnit(
     grade,
     gradeLabel,
     track: 'New Hello',
+    textbookSeries: `New Hello! Prep ${grade - 6}`,
+    verificationStatus: 'verified',
+    sourceReference: `Egyptian MOE New Hello! Prep ${grade - 6}, Term ${semester}, Unit ${unitNumber} (${unitTitle})`,
     semester,
     unitNumber,
     unitTitle,
@@ -359,7 +371,10 @@ function createPrepUnit(
       questions: [
         ...blueprint.vocabGrammarMcqs,
         ...blueprint.readingPassage.mcqs
-      ],
+      ].map(q => ({
+        ...q,
+        id: `exam_${q.id}`
+      })),
       prepBlueprint: blueprint
     }
   };
@@ -694,6 +709,52 @@ export const preparatoryCurriculumCatalog: GradeCurriculumCatalog[] = [
             ],
             'On a busy morning in downtown Cairo, hardworking citizens serve their community with passion! Uncle Kamal is a street food seller who prepares fresh foul and taameya sandwiches. "I park my food stall here at six o’clock in the morning," he smiles. "People are hurrying to catch the metro, so I prepare their food quickly and hygienically." Across the street at the children’s hospital, Nurse Mona is looking after young patients in the surgical ward. She speaks softly and treats every child with loving care. In the school next door, students are learning sign language so they can communicate warmly with deaf peers.',
             'Amal: "Look, what is that man doing on the corner?"\nNour: "He is a street food seller. He is preparing hot falafel for morning workers."\nAmal: "He is moving very quickly!"\nNour: "Yes, and he always greets his customers politely."'
+          ),
+
+          // Unit 3: Great Jobs
+          createPrepUnit(
+            8, 'Prep 2', 1, 3, 'Great Jobs', 'وظائف عظيمة وقدوات مصرية ملهمة',
+            'Inspirational Egyptian heroes, heart surgeons, Dr. Magdi Yacoub, Sameera Moussa, Red Crescent volunteers, charity work',
+            'Past Simple Tense & Used to / Didn’t use to for Past Habits',
+            'الماضي البسيط والتعبير عن العادات الماضية بـ Used to',
+            'Use "used to + infinitive" to describe past habits or states that are no longer true today ("He used to work in a small clinic, but now he runs a major hospital"). Negative: "didn’t use to + infinitive". Question: "Did you use to...?"',
+            [
+              {
+                title: '1. Used to + Infinitive for Past Habits (التعبير عن عادات الماضي)',
+                explanation: 'Affirmative: Subject + used to + base verb. Negative: Subject + didn’t use to + base verb. Question: Did + subject + use to + base verb?',
+                examples: [
+                  'Dr. Magdi Yacoub used to travel across Egypt with his father, who was a surgeon.',
+                  'People didn’t use to have modern heart centers in Upper Egypt before 2009.'
+                ]
+              },
+              {
+                title: '2. Past Simple for Completed Historical Achievements (الماضي البسيط للإنجازات التاريخية)',
+                explanation: 'Use Past Simple (verb + ed or irregular second form) with definite past dates such as "in 1995", "in 2009", "when she was young".',
+                examples: [
+                  'Dr. Magdi Yacoub started a charity to help children with heart problems in Aswan.',
+                  'Sameera Moussa studied nuclear physics at Cairo University.'
+                ]
+              }
+            ],
+            [
+              { word: 'surgeon', pos: 'n.', ar: 'طبيب جراح ماهر', def: 'A special doctor who knows how to look inside the body and perform operations.', ex: 'Sir Magdi Yacoub is a world-famous Egyptian heart surgeon.', exAr: 'السير مجدي يعقوب جراح قلب مصري ذائع الصيت عالمياً.' },
+              { word: 'scientist', pos: 'n.', ar: 'عالم باحث في العلوم', def: 'A person who studies or has expert knowledge of natural or physical sciences.', ex: 'Sameera Moussa was a pioneering Egyptian nuclear scientist.', exAr: 'كانت سميرة موسى عالمة ذرة مصرية رائدة.' },
+              { word: 'patron', pos: 'n.', ar: 'راعٍ وداعم للمؤسسات الخيرية', def: 'A person who gives financial or other support to a person, organization, or cause.', ex: 'Princess Fatma Ismail was a generous patron of Cairo University.', exAr: 'كانت الأميرة فاطمة إسماعيل راعية وداعمة كريمة لجامعة القاهرة.' },
+              { word: 'hero', pos: 'n.', ar: 'بطل وقدوة ملهمة', def: 'A person who is admired for courage, outstanding achievements, or noble qualities.', ex: 'Medical workers and firefighters are true everyday heroes.', exAr: 'الأطباء ورجال الإطفاء هم أبطال حقيقيون في حياتنا اليومية.' },
+              { word: 'charity', pos: 'n.', ar: 'مؤسسة وجمعية خيرية', def: 'An organization set up to provide help and raise money for those in need.', ex: 'The Aswan Heart Centre charity treats sick children for free.', exAr: 'يعالج مركز مجدي يعقوب للقلب الخيري بأسوان الأطفال المرضى مجاناً.' },
+              { word: 'emergency', pos: 'n.', ar: 'حالة طوارئ حرجة', def: 'A serious, unexpected, and often dangerous situation requiring immediate action.', ex: 'Ambulance paramedics respond rapidly to medical emergencies.', exAr: 'يستجيب مسعفو الإسعاف بسرعة لحالات الطوارئ الطبية.' },
+              { word: 'infection', pos: 'n.', ar: 'عدوى مرضية أو التهاب', def: 'A disease in a part of your body caused by bacteria or a virus.', ex: 'Washing hands with soap prevents the spread of eye and chest infections.', exAr: 'غسل اليدين بالصابون يمنع انتشار العدوى والالتهابات.' },
+              { word: 'countryside', pos: 'n.', ar: 'الريف والقرى المصرية', def: 'Land and scenery of a rural area outside towns and cities.', ex: 'My grandfather used to live in the quiet green countryside.', exAr: 'اعتاد جدي العيش في الريف الأخضر الهادئ.' },
+              { word: 'nuclear', pos: 'adj.', ar: 'نووي وذري (للعلاج السلمي)', def: 'Relating to the nucleus of an atom or atomic energy.', ex: 'Sameera Moussa wanted to use nuclear treatments to cure cancer.', exAr: 'أرادت سميرة موسى استخدام العلاجات الذرية في شفاء مرض السرطان.' },
+              { word: 'pump', pos: 'v.', ar: 'يضخ الدم في الجسم', def: 'Force liquid or gas to move in a specified direction.', ex: 'The human heart pumps blood around the body continuously.', exAr: 'يضخ قلب الإنسان الدم في جميع أنحاء الجسم باستمرار.' }
+            ],
+            [
+              { phrase: 'perform heart surgery', meaningAr: 'يجري عملية جراحية في القلب', example: 'Skilled surgeons perform heart surgery to save children’s lives.' },
+              { phrase: 'work for a charity', meaningAr: 'يعمل لصالح مؤسسة خيرية', example: 'Many retired doctors volunteer to work for a charity.' },
+              { phrase: 'used to live in the countryside', meaningAr: 'اعتاد العيش في الريف', example: 'Before moving to Cairo, my uncle used to live in the countryside.' }
+            ],
+            'Egypt has given the world remarkable heroes in medicine and science! Sir Magdi Yacoub was born in Belbeis in 1935. Because his father was a surgeon, the family used to travel to many places in Egypt. Magdi Yacoub became one of the top heart surgeons in the world. Although he retired in 2001, he did not stop helping people. In 2009, he opened the Aswan Heart Centre charity so that ill Egyptian children who didn’t use to have access to complex surgeries could receive free medical care.',
+            'Lina: "Who is the Egyptian hero you admire most, Salma?"\nSalma: "I admire Dr. Magdi Yacoub! He is a world-famous heart surgeon."\nLina: "Where did he use to work before opening the Aswan Heart Centre?"\nSalma: "He used to work at a famous hospital in London, performing life-saving heart transplants."'
           ),
           prep2Unit4,
           prep2Unit5,

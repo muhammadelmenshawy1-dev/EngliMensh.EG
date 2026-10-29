@@ -2,12 +2,10 @@ import React from 'react';
 import { MessageCircle, Heart, Phone } from 'lucide-react';
 
 interface FooterProps {
-  onOpenTeacherLogin?: () => void;
   onNavigateTab?: (tab: 'home' | 'exams' | 'games' | 'leaderboard' | 'profile') => void;
 }
 
 export const Footer: React.FC<FooterProps> = ({
-  onOpenTeacherLogin,
   onNavigateTab,
 }) => {
   return (
@@ -135,14 +133,6 @@ export const Footer: React.FC<FooterProps> = ({
             >
               <span>🇸🇦 +966 54 969 7159</span>
             </a>
-            {onOpenTeacherLogin && (
-              <button
-                onClick={onOpenTeacherLogin}
-                className="text-amber-400 hover:text-amber-300 underline font-semibold ml-2 cursor-pointer"
-              >
-                Teacher Portal Login
-              </button>
-            )}
           </div>
         </div>
 

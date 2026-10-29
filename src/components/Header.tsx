@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Menu, X, Rocket, ShieldCheck, User, Key, BookOpen, Trophy, Sparkles, ChevronRight, HelpCircle } from 'lucide-react';
 import { StudentProfile, MainAppTab } from '../types.ts';
-import { isTeacherEmail, getStudentAvatar } from '../services/studentStorage.ts';
+import { getStudentAvatar } from '../services/studentStorage.ts';
 
 interface HeaderProps {
   student: StudentProfile | null;
@@ -11,8 +11,6 @@ interface HeaderProps {
   onNavigateTab?: (tab: MainAppTab) => void;
   onOpenProfile: () => void;
   onOpenSettings?: () => void;
-  onOpenTeacherDashboard?: () => void;
-  onOpenTeacherLogin?: () => void;
   onStartNow?: () => void;
   onOpenAbout?: () => void;
 }
@@ -25,16 +23,11 @@ export const Header: React.FC<HeaderProps> = ({
   onNavigateTab,
   onOpenProfile,
   onOpenSettings,
-  onOpenTeacherDashboard,
-  onOpenTeacherLogin,
   onStartNow,
   onOpenAbout,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const isTeacher = isTeacherEmail(student?.email) || student?.role === 'teacher';
-  const displayName = isTeacher
-    ? 'Mr. Mohammad'
-    : (student?.name || studentName || 'Student');
+  const displayName = student?.name || studentName || 'Student';
   const totalScore = student?.totalScore || 0;
   const avatar = student?.avatarUrl || (student?.id ? getStudentAvatar(student.id) : null);
 
@@ -130,12 +123,16 @@ export const Header: React.FC<HeaderProps> = ({
             Learning Games
           </button>
 
-          {/* 5. Vocabulary & Grammar Link */}
+          {/* 5. Smart Translator Link */}
           <button
-            onClick={() => handleNav('games')}
-            className="px-3.5 py-1.5 rounded-full text-sm font-semibold text-[#12366B] hover:text-[#0878E8] hover:bg-slate-50 transition-all cursor-pointer"
+            onClick={() => handleNav('translator')}
+            className={`px-3.5 py-1.5 rounded-full text-sm font-semibold transition-all cursor-pointer ${
+              currentTab === 'translator' || currentTab === 'dictionary'
+                ? 'bg-[#0878E8] text-white shadow-xs'
+                : 'text-[#12366B] hover:text-[#0878E8] hover:bg-slate-50'
+            }`}
           >
-            Vocabulary & Grammar
+            Translator
           </button>
 
           {/* 6. About Link */}
@@ -167,31 +164,6 @@ export const Header: React.FC<HeaderProps> = ({
             <Rocket className="w-4 h-4 text-[#0B397D] fill-current" />
             <span>Start Now</span>
           </button>
-
-          {/* Teacher Portal Badge (if active teacher) */}
-          {isTeacher && onOpenTeacherDashboard && (
-            <button
-              onClick={onOpenTeacherDashboard}
-              className="px-3 py-2 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black flex items-center gap-1.5 transition-all shadow-xs active:scale-95 cursor-pointer shrink-0"
-              title="Teacher Management & Manual Grading Dashboard"
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Teacher Dashboard</span>
-              <span className="md:hidden">معلم</span>
-            </button>
-          )}
-
-          {/* Teacher Login Shortcut (if not authenticated) */}
-          {!isTeacher && onOpenTeacherLogin && (
-            <button
-              onClick={onOpenTeacherLogin}
-              className="p-2 sm:px-2.5 sm:py-2 rounded-full border border-slate-200 hover:border-amber-400 text-slate-500 hover:text-amber-800 text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer"
-              title="Teacher Access Portal"
-            >
-              <ShieldCheck className="w-4 h-4 text-amber-500" />
-              <span className="hidden xl:inline">Teacher</span>
-            </button>
-          )}
 
           {/* Student Profile Quick Badge */}
           <button
@@ -304,10 +276,14 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             <button
-              onClick={() => handleNav('games')}
-              className="flex items-center justify-between px-4 py-2.5 rounded-xl font-bold text-sm text-[#12366B] hover:bg-slate-50"
+              onClick={() => handleNav('translator')}
+              className={`flex items-center justify-between px-4 py-2.5 rounded-xl font-bold text-sm ${
+                currentTab === 'translator' || currentTab === 'dictionary'
+                  ? 'bg-[#0878E8] text-white'
+                  : 'text-[#12366B] hover:bg-slate-50'
+              }`}
             >
-              <span>Vocabulary & Grammar</span>
+              <span>Smart Translator • المترجم الذكي</span>
               <ChevronRight className="w-4 h-4 text-slate-400" />
             </button>
 

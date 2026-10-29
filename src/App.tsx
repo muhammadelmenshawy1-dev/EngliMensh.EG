@@ -29,6 +29,7 @@ import { HomeView } from './components/HomeView.tsx';
 import { GamesArena } from './components/games/GamesArena.tsx';
 import { LeaderboardView } from './components/LeaderboardView.tsx';
 import { StudentProfileView } from './components/StudentProfileView.tsx';
+import { DictionaryView } from './components/dictionary/DictionaryView.tsx';
 import { CertificateModal } from './components/CertificateModal.tsx';
 import { StudentRegistrationModal } from './components/StudentRegistrationModal.tsx';
 import { EngliMenshLogo } from './components/EngliMenshLogo.tsx';
@@ -37,14 +38,21 @@ import { Footer } from './components/Footer.tsx';
 import { QuestionCard } from './components/QuestionCard.tsx';
 import { ReadingComprehensionSplitView } from './components/ReadingComprehensionSplitView.tsx';
 import { HeroCover } from './components/HeroCover.tsx';
-import { TeacherDashboardView } from './components/TeacherDashboardView.tsx';
-import { TeacherLoginModal } from './components/TeacherLoginModal.tsx';
+
 import { CurriculumExplorer } from './components/CurriculumExplorer.tsx';
 import { LessonViewerModal } from './components/LessonViewerModal.tsx';
+import { ExamsHub } from './components/ExamsHub.tsx';
 import { EducationalStage, SecondaryTrackPath, UnitCurriculum } from './types/curriculum.ts';
 import { allBaccalaureateExams, getBaccalaureateExamsByGrade } from './data/baccalaureateExams.ts';
 import { allCurriculaUnits } from './data/masterCurriculumDatabase.ts';
 import { allSecondaryGeneralUnits } from './data/secondaryCurriculumFullTerm1.ts';
+import { AppHeader } from './components/AppHeader.tsx';
+import { HomeScreen } from './screens/HomeScreen.tsx';
+import { CurriculaScreen } from './screens/CurriculaScreen.tsx';
+import { GamesScreen } from './screens/GamesScreen.tsx';
+import { SmartToolsScreen } from './screens/SmartToolsScreen.tsx';
+import { ProfileScreen } from './screens/ProfileScreen.tsx';
+import { ArcadeGameType } from './types/gameQuestions.ts';
 
 const PROGRESS_KEY = 'egypt_moe_student_progress_v2';
 
@@ -101,11 +109,12 @@ export default function App() {
   // Print mode
   const [isPrintMode, setIsPrintMode] = useState<boolean>(false);
 
-  // Main App Navigation Tab ('home' | 'curricula' | 'exams' | 'games' | 'leaderboard' | 'profile' | 'teacher')
+  // Main App Navigation Tab ('home' | 'curricula' | 'exams' | 'games' | 'leaderboard' | 'profile' | 'teacher' | 'tools')
   const [currentAppTab, setCurrentAppTab] = useState<MainAppTab>('home');
   const [curriculumStage, setCurriculumStage] = useState<EducationalStage>('Secondary');
   const [curriculumGrade, setCurriculumGrade] = useState<number>(10);
   const [curriculumSecondaryPath, setCurriculumSecondaryPath] = useState<SecondaryTrackPath>('general_secondary');
+  const [launchedGame, setLaunchedGame] = useState<ArcadeGameType | null>(null);
 
   // Examination Pathways (General Secondary vs Egyptian Baccalaureate 2026/2027)
   const [examSecondaryPath, setExamSecondaryPath] = useState<'general' | 'baccalaureate'>('general');
@@ -113,13 +122,13 @@ export default function App() {
 
   // Persistent Student Profile (Auto-Login with zero repeated login on revisit)
   const [student, setStudent] = useState<StudentProfile | null>(() => getStoredStudent());
-  const [studentName, setStudentName] = useState<string>(() => student?.name || localStorage.getItem('englimensh_student_name') || '');
-  const [studentGroup, setStudentGroup] = useState<string>(() => student?.group || localStorage.getItem('englimensh_student_group') || '');
-  const [isFirstLaunch, setIsFirstLaunch] = useState<boolean>(() => !getStoredStudent());
-  const [showRegistrationModal, setShowRegistrationModal] = useState<boolean>(() => !getStoredStudent());
+  const [studentName, setStudentName] = useState<string>(() => student?.name || localStorage.getItem('englimensh_student_name') || 'عمر محمد');
+  const [studentGroup, setStudentGroup] = useState<string>(() => student?.group || localStorage.getItem('englimensh_student_group') || 'General');
+  const [isFirstLaunch, setIsFirstLaunch] = useState<boolean>(false);
+  const [showRegistrationModal, setShowRegistrationModal] = useState<boolean>(false);
   const [pendingExam, setPendingExam] = useState<Exam | null>(null);
   const [regError, setRegError] = useState<string>('');
-  const [showTeacherLoginModal, setShowTeacherLoginModal] = useState<boolean>(false);
+  const [, setHeaderRefreshTick] = useState<number>(0);
 
   // Certificate Modal State
   const [showCertificateModal, setShowCertificateModal] = useState<boolean>(false);
@@ -547,155 +556,187 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans antialiased pb-28" dir="ltr">
-      {/* REDESIGNED BRAND NAVIGATION BAR */}
-      <Header
-        student={student}
-        studentName={studentName}
-        currentTab={currentAppTab}
-        onLogoClick={() => {
-          setCurrentAppTab('home');
-          setExamState('lobby');
-          setIsPrintMode(false);
-        }}
-        onNavigateTab={(tab) => {
-          setCurrentAppTab(tab);
-          setExamState('lobby');
-          setIsPrintMode(false);
-        }}
-        onStartNow={() => {
-          setCurrentAppTab('exams');
-          setExamState('lobby');
-          setIsPrintMode(false);
-        }}
-        onOpenAbout={() => {
-          const el = document.getElementById('footer-brand-section');
-          if (el) el.scrollIntoView({ behavior: 'smooth' });
-        }}
-        onOpenProfile={() => {
-          setRegError('');
-          setShowRegistrationModal(true);
-        }}
-        onOpenTeacherDashboard={() => {
-          setCurrentAppTab('teacher');
-          setExamState('lobby');
-        }}
-        onOpenTeacherLogin={() => setShowTeacherLoginModal(true)}
-        onOpenSettings={() => setShowSettingsModal(true)}
-      />
+    <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] font-sans antialiased pb-24" dir="ltr">
+      {/* Sticky Top AppHeader for the 5-Tab Mobile-First Experience */}
+      {examState === 'lobby' && !examStudyUnit ? (
+        <AppHeader
+          student={student}
+          onLogoClick={() => {
+            setCurrentAppTab('home');
+            setLaunchedGame(null);
+          }}
+          onOpenProfile={() => setCurrentAppTab('profile')}
+          onOpenLeaderboard={() => setCurrentAppTab('profile')}
+        />
+      ) : (
+        <Header
+          student={student}
+          studentName={studentName}
+          currentTab={currentAppTab}
+          onLogoClick={() => {
+            setCurrentAppTab('home');
+            setExamState('lobby');
+            setIsPrintMode(false);
+          }}
+          onNavigateTab={(tab) => {
+            setCurrentAppTab(tab);
+            setExamState('lobby');
+            setIsPrintMode(false);
+          }}
+          onStartNow={() => {
+            setCurrentAppTab('curricula');
+            setExamState('lobby');
+            setIsPrintMode(false);
+          }}
+          onOpenAbout={() => {
+            const el = document.getElementById('footer-brand-section');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+          }}
+          onOpenProfile={() => {
+            setCurrentAppTab('profile');
+          }}
+          onOpenSettings={() => setShowSettingsModal(true)}
+        />
+      )}
 
-      {/* Main Content Area */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* LOBBY VIEW */}
-        {examState === 'lobby' && (
+      {/* NATIVE FULL-PAGE LESSON EXPERIENCE (When opened for deep study) */}
+      {examStudyUnit ? (
+        <LessonViewerModal
+          unit={examStudyUnit}
+          isOpen={Boolean(examStudyUnit)}
+          onClose={() => setExamStudyUnit(null)}
+          onTakeExam={(exam) => {
+            setExamStudyUnit(null);
+            const found = findAnyExamAcrossAllGrades(exam.examId) || currentUnit.exams[0];
+            if (found) handleStartExam(found);
+          }}
+        />
+      ) : (
+        /* Main Content Area */
+        <main className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-2 sm:py-4">
+          {/* LOBBY VIEW */}
+          {examState === 'lobby' && (
           <div>
-            {/* 1. HOME TAB (Redesigned Modern Landing Page) */}
+            {/* TAB 1: HOME (الرئيسية) */}
             {currentAppTab === 'home' && (
-              <HomeView
+              <HomeScreen
                 student={student}
-                isInstalled={isInstalled}
-                onNavigate={(tab, stage) => {
-                  if (stage) {
-                    setCurriculumStage(stage);
-                    if (stage === 'Primary') setCurriculumGrade(1);
-                    else if (stage === 'Preparatory') setCurriculumGrade(7);
-                    else setCurriculumGrade(10);
-                  }
+                onNavigateTab={(tab) => {
+                  setLaunchedGame(null);
                   setCurrentAppTab(tab);
-                  setExamState('lobby');
-                  setIsPrintMode(false);
                 }}
-                onOpenInstallModal={() => setShowInstallModal(true)}
-                onOpenShareModal={() => {
-                  setShareCustomText('');
-                  setShowShareModal(true);
+                onLaunchGame={(gameType) => {
+                  setLaunchedGame(gameType);
+                  setCurrentAppTab('games');
                 }}
-                onOpenRegistrationModal={() => setShowRegistrationModal(true)}
-                onStudentUpdated={(updated) => {
-                  setStudent(updated);
-                  setStudentName(updated.name);
-                  setStudentGroup(updated.group);
+                onStartDailyQuest={() => setCurrentAppTab('games')}
+                onContinueLesson={(unit) => {
+                  if (unit) {
+                    setCurriculumStage(unit.stage);
+                    setCurriculumGrade(unit.grade);
+                  }
+                  setCurrentAppTab('curricula');
+                }}
+                onStateUpdated={() => {
+                  setStudent(getStoredStudent());
+                  setHeaderRefreshTick((t) => t + 1);
                 }}
               />
             )}
 
-            {/* CURRICULA & SYLLABUS EXPLORER (Secondary 1 & All Stages) */}
+            {/* TAB 2: CURRICULA (المناهج) */}
             {currentAppTab === 'curricula' && (
-              <CurriculumExplorer
+              <CurriculaScreen
+                currentStage={curriculumStage}
+                currentGrade={curriculumGrade}
+                onSelectStage={setCurriculumStage}
+                onSelectGrade={setCurriculumGrade}
+                onOpenUnit={(unit) => setExamStudyUnit(unit)}
+                onStateUpdated={() => {
+                  setStudent(getStoredStudent());
+                  setHeaderRefreshTick((t) => t + 1);
+                }}
+              />
+            )}
+
+            {/* TAB 3: GAMES (الألعاب / ساحة الألعاب) */}
+            {currentAppTab === 'games' && (
+              <GamesScreen
                 student={student}
+                onPointsEarned={(pts, badges) => {
+                  handleGamePointsEarned(pts, badges);
+                  setHeaderRefreshTick((t) => t + 1);
+                }}
                 initialStage={curriculumStage}
                 initialGrade={curriculumGrade}
-                onNavigateTab={(tab) => {
-                  setCurrentAppTab(tab);
-                  setExamState('lobby');
-                  setIsPrintMode(false);
-                }}
-                onStudentUpdated={(updated) => {
-                  setStudent(updated);
-                  setStudentName(updated.name);
-                  setStudentGroup(updated.group);
+                activeLaunchedGame={launchedGame}
+                onGameClosed={() => setLaunchedGame(null)}
+              />
+            )}
+
+            {/* TAB 4: SMART TOOLS (الأدوات الذكية) */}
+            {(currentAppTab === 'tools' || currentAppTab === 'translator' || currentAppTab === 'dictionary') && (
+              <SmartToolsScreen
+                onStateUpdated={() => {
+                  setStudent(getStoredStudent());
+                  setHeaderRefreshTick((t) => t + 1);
                 }}
               />
             )}
 
-            {/* 2. INTERACTIVE GAMES ARENA TAB */}
-            {currentAppTab === 'games' && (
-              <GamesArena
+            {/* TAB 5: PROFILE & TROPHIES (حسابي والجوائز) */}
+            {(currentAppTab === 'profile' || currentAppTab === 'leaderboard') && (
+              <ProfileScreen
                 student={student}
-                onPointsEarned={handleGamePointsEarned}
-                onNavigateToExams={() => setCurrentAppTab('exams')}
-              />
-            )}
-
-            {/* 3. LEADERBOARD & CERTIFICATES TAB */}
-            {currentAppTab === 'leaderboard' && (
-              <LeaderboardView
-                student={student}
-                onOpenCertificate={handleOpenCertificateFromHistory}
-                onOpenShareModal={() => {
-                  setShareCustomText('');
-                  setShowShareModal(true);
+                onUpdateStudentName={(newName) => {
+                  setStudentName(newName);
+                  setStudent(getStoredStudent());
+                  setHeaderRefreshTick((t) => t + 1);
                 }}
-                onNavigateToExams={() => setCurrentAppTab('exams')}
-              />
-            )}
-
-            {/* 4. STUDENT PROFILE TAB */}
-            {currentAppTab === 'profile' && (
-              <StudentProfileView
-                student={student}
-                onEditProfile={() => setShowRegistrationModal(true)}
-                onViewCertificate={handleOpenCertificateFromHistory}
-                onLogout={handleLogoutStudent}
-                onStudentUpdated={(updated) => {
-                  setStudent(updated);
-                  setStudentName(updated.name);
-                  setStudentGroup(updated.group);
+                onStateUpdated={() => {
+                  setStudent(getStoredStudent());
+                  setHeaderRefreshTick((t) => t + 1);
                 }}
               />
             )}
 
-            {/* 5. EXAMS & QUESTION BANK TAB */}
+            {/* EXAMS & QUESTION BANK TAB */}
             {currentAppTab === 'exams' && (
+              <ExamsHub
+                student={student}
+                onStartExam={handleStartExam}
+                onPrintExam={(exam) => {
+                  setActiveExam(exam);
+                  setIsPrintMode(true);
+                  setExamState('review');
+                }}
+                onOpenRegistration={() => setShowRegistrationModal(true)}
+                onOpenLesson={(unit) => setExamStudyUnit(unit)}
+                onStudentUpdated={(updated) => {
+                  setStudent(updated);
+                  setStudentName(updated.name);
+                  setStudentGroup(updated.group);
+                }}
+                examSecondaryPath={examSecondaryPath}
+                onSelectExamPath={handleSelectExamPath}
+                examGrade={examGrade}
+                onSelectExamGrade={handleSelectExamGrade}
+                activeExamUnits={activeExamUnits}
+                currentUnit={currentUnit}
+                selectedUnitId={selectedUnitId}
+                onSelectUnitId={setSelectedUnitId}
+                progress={progress}
+                examsHeaderMeta={examsHeaderMeta}
+                secondaryActiveTab={activeTab}
+                onChangeSecondaryTab={setActiveTab}
+                governmentalExams={governmentalExams}
+                term1RevisionExams={term1RevisionExams}
+                term2RevisionExams={term2RevisionExams}
+              />
+            )}
+
+            {false && (
               <div className="space-y-8 animate-in fade-in duration-200">
-                <HeroCover />
-                {/* Active Student Status Strip */}
-                {student && (
-                  <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl px-5 py-3 flex items-center justify-between gap-4 text-xs">
-                    <div className="flex items-center gap-2.5">
-                      <UserCheck className="w-4 h-4 text-emerald-700 shrink-0" />
-                      <span className="text-emerald-950">
-                        Student: <strong className="font-bold text-slate-900">{student.name}</strong> · School: <strong className="font-bold text-slate-900">{student.school}</strong> ({student.group})
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => setShowRegistrationModal(true)}
-                      className="text-blue-900 hover:underline font-semibold text-xs whitespace-nowrap cursor-pointer"
-                    >
-                      Edit Profile
-                    </button>
-                  </div>
-                )}
 
                 {/* Secondary Stage Dual Pathways Switcher (2026/2027) */}
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50/80 border-2 border-blue-200/90 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xs">
@@ -1510,20 +1551,6 @@ export default function App() {
               </div>
             )}
 
-        {/* 6. TEACHER DASHBOARD TAB */}
-        {currentAppTab === 'teacher' && (
-          <TeacherDashboardView
-            currentStudent={student}
-            onStudentUpdated={() => {
-              const s = getStoredStudent();
-              if (s) {
-                setStudent(s);
-                setStudentName(s.name);
-                setStudentGroup(s.group);
-              }
-            }}
-          />
-        )}
       </div>
     )}
 
@@ -2418,6 +2445,7 @@ export default function App() {
           </div>
         )}
       </main>
+    )}
 
       {/* GEMINI API SETTINGS MODAL */}
       {showSettingsModal && (
@@ -2535,36 +2563,8 @@ export default function App() {
         }}
       />
 
-      {/* DEDICATED INTERACTIVE LESSON VIEWER MODAL (EXAMS TAB) */}
-      {examStudyUnit && (
-        <LessonViewerModal
-          unit={examStudyUnit}
-          isOpen={Boolean(examStudyUnit)}
-          onClose={() => setExamStudyUnit(null)}
-          onTakeExam={(exam) => {
-            setExamStudyUnit(null);
-            const found = findAnyExamAcrossAllGrades(exam.examId) || currentUnit.exams[0];
-            if (found) handleStartExam(found);
-          }}
-        />
-      )}
-
-      {/* TEACHER AUTHENTICATION LOGIN MODAL */}
-      <TeacherLoginModal
-        isOpen={showTeacherLoginModal}
-        onClose={() => setShowTeacherLoginModal(false)}
-        onLoginSuccess={(teacherProfile) => {
-          setStudent(teacherProfile);
-          setStudentName(teacherProfile.name);
-          setStudentGroup(teacherProfile.group);
-          setCurrentAppTab('teacher');
-          setExamState('lobby');
-        }}
-      />
-
       {/* REDESIGNED BRAND FOOTER (Deep Midnight Navy #07224D) */}
       <Footer
-        onOpenTeacherLogin={() => setShowTeacherLoginModal(true)}
         onNavigateTab={(tab) => {
           setCurrentAppTab(tab);
           setExamState('lobby');

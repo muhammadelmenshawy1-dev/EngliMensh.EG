@@ -12,6 +12,8 @@ export type CurriculumTrack =
 
 export type QuestionSkill = 'Vocabulary' | 'Grammar' | 'Reading' | 'Listening';
 
+export type VerificationStatus = 'verified' | 'corrected_pending_verification' | 'curriculum_aligned' | 'unverified';
+
 export interface CurriculumQuestion {
   id: string;
   skill: QuestionSkill;
@@ -24,6 +26,9 @@ export interface CurriculumQuestion {
   explanationAr?: string;
   exam_trap_explanation?: string;
   examTrapExplanationAr?: string;
+  verificationStatus?: VerificationStatus;
+  sourceReference?: string;
+  learningObjective?: string;
 }
 
 export interface VocabularyWord {
@@ -218,6 +223,9 @@ export interface UnitCurriculum {
   listeningModule: ListeningModule;
   unitExam: UnitExam;
   literatureModule?: LiteratureChapterModule;
+  verificationStatus?: VerificationStatus;
+  textbookSeries?: string;
+  sourceReference?: string;
 }
 
 export interface GradeCurriculumCatalog {
@@ -241,3 +249,19 @@ export interface MasterCurriculumDatabase {
   curricula: UnitCurriculum[];
   stageCatalogs: GradeCurriculumCatalog[];
 }
+
+export type {
+  VocabularyItem,
+  PhonicsCard,
+  GrammarRuleItem,
+  SkillsActivity,
+  PrimaryLessonContent,
+  PrimaryExamQuestion
+} from '../data/primaryStageData.ts';
+
+export type {
+  PrepLessonContent,
+  PrepExamQuestion
+} from '../data/prepStageData.ts';
+
+

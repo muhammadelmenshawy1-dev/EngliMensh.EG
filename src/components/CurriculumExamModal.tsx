@@ -2140,7 +2140,7 @@ export const CurriculumExamModal: React.FC<CurriculumExamModalProps> = ({
                 </div>
               )}
             </>
-          ) : (
+          )) : (
             /* ========================================================
                 RESULTS & PEDAGOGICAL REVIEW MODE
                ======================================================== */

@@ -34,6 +34,9 @@ import {
   secondaryEssayGuide,
   secondaryTranslationExercises
 } from '../data/skillsBoosterData.ts';
+import { PrimaryLessonViewer } from './PrimaryLessonViewer.tsx';
+import { getPrimaryLesson } from '../data/primaryStageData.ts';
+import '../data/primaryCurriculumInjector.ts';
 
 interface LessonViewerModalProps {
   unit: UnitCurriculum | null;
@@ -189,6 +192,24 @@ export const LessonViewerModal: React.FC<LessonViewerModalProps> = ({
 
   if (!isOpen || !unit) return null;
 
+  const isPrimaryStage = unit.stage === 'Primary' || (unit.grade !== undefined && unit.grade >= 1 && unit.grade <= 6);
+  const priLesson = isPrimaryStage ? getPrimaryLesson(`primary_${unit.grade}`, unit.unitNumber, 'connect', unit.semester) : null;
+
+  if (isPrimaryStage && priLesson) {
+    return (
+      <PrimaryLessonViewer
+        lesson={priLesson}
+        onBack={onClose}
+        onClose={onClose}
+        onExamComplete={() => {
+          if (onTakeExam && unit.unitExam) {
+            onTakeExam(unit.unitExam);
+          }
+        }}
+      />
+    );
+  }
+
   const toggleHots = (qId: string) => {
     setRevealedHots(prev => ({ ...prev, [qId]: !prev[qId] }));
   };
@@ -215,7 +236,7 @@ export const LessonViewerModal: React.FC<LessonViewerModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-slate-50 flex flex-col w-screen h-screen overflow-hidden animate-in fade-in duration-200"
+      className="w-full bg-slate-50 text-slate-800 font-sans min-h-screen pb-32 animate-in fade-in duration-200"
       dir="ltr"
     >
       {/* ========================================================
@@ -349,9 +370,9 @@ export const LessonViewerModal: React.FC<LessonViewerModalProps> = ({
       </nav>
 
       {/* ========================================================
-          3. MAIN DEDICATED FULL-SCREEN BODY (SCROLLABLE)
+          3. MAIN DEDICATED FULL-PAGE BODY (NATURAL SCROLLING)
          ======================================================== */}
-      <main className="flex-1 overflow-y-auto px-4 sm:px-8 lg:px-12 py-8 max-w-5xl mx-auto w-full space-y-8 text-slate-800">
+      <main className="w-full max-w-5xl mx-auto px-4 sm:px-8 lg:px-12 py-8 space-y-8 text-slate-800">
         
         {/* ======================================================
             TAB 1: VOCABULARY BANK & INTERACTIVE PRACTICE SUITE

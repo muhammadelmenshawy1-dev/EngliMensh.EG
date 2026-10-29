@@ -152,7 +152,7 @@ export interface StoryEvaluation {
   modelAnswer: string;
 }
 
-export type MainAppTab = 'home' | 'curricula' | 'exams' | 'games' | 'leaderboard' | 'profile' | 'teacher';
+export type MainAppTab = 'home' | 'curricula' | 'exams' | 'translator' | 'dictionary' | 'games' | 'leaderboard' | 'profile' | 'teacher' | 'tools';
 
 export interface ExamHistoryRecord {
   id: string;

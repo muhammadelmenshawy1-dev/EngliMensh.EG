@@ -4,9 +4,67 @@ import path from 'path';
 import {defineConfig} from 'vite';
 import {VitePWA} from 'vite-plugin-pwa';
 
+const VITE_HMR_WS_GUARD = `
+if (typeof window !== 'undefined' && window.WebSocket && !window.__viteHmrWsPatched) {
+  window.__viteHmrWsPatched = true;
+  const NativeWebSocket = window.WebSocket;
+  class SafeViteHmrSocket extends EventTarget {
+    constructor(url, protocols) {
+      super();
+      this.url = String(url || '');
+      this.protocol = Array.isArray(protocols) ? (protocols[0] || '') : (protocols || '');
+      this.readyState = 1;
+      this.CONNECTING = 0;
+      this.OPEN = 1;
+      this.CLOSING = 2;
+      this.CLOSED = 3;
+      this.bufferedAmount = 0;
+      this.extensions = '';
+      this.binaryType = 'blob';
+      queueMicrotask(() => {
+        const evt = new Event('open');
+        this.dispatchEvent(evt);
+        if (typeof this.onopen === 'function') this.onopen(evt);
+      });
+    }
+    send() {}
+    close() {}
+  }
+  SafeViteHmrSocket.CONNECTING = 0;
+  SafeViteHmrSocket.OPEN = 1;
+  SafeViteHmrSocket.CLOSING = 2;
+  SafeViteHmrSocket.CLOSED = 3;
+  const PatchedWebSocket = function(url, protocols) {
+    const isViteHmr =
+      protocols === 'vite-hmr' ||
+      (Array.isArray(protocols) && protocols.includes('vite-hmr'));
+    if (isViteHmr) {
+      return new SafeViteHmrSocket(url, protocols);
+    }
+    return protocols !== undefined
+      ? new NativeWebSocket(url, protocols)
+      : new NativeWebSocket(url);
+  };
+  PatchedWebSocket.prototype = NativeWebSocket.prototype;
+  PatchedWebSocket.CONNECTING = NativeWebSocket.CONNECTING;
+  PatchedWebSocket.OPEN = NativeWebSocket.OPEN;
+  PatchedWebSocket.CLOSING = NativeWebSocket.CLOSING;
+  PatchedWebSocket.CLOSED = NativeWebSocket.CLOSED;
+  window.WebSocket = PatchedWebSocket;
+}
+`;
+
 export default defineConfig(() => {
   return {
     plugins: [
+      {
+        name: 'vite-hmr-ws-guard',
+        transform(code, id) {
+          if (id.includes('vite/dist/client/client.mjs')) {
+            return VITE_HMR_WS_GUARD + '\n' + code;
+          }
+        },
+      },
       react(),
       tailwindcss(),
       VitePWA({
@@ -87,7 +145,7 @@ export default defineConfig(() => {
           ],
         },
         devOptions: {
-          enabled: true,
+          enabled: false,
           type: 'module',
         },
       }),

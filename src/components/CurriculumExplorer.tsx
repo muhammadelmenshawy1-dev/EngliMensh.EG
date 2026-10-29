@@ -38,6 +38,9 @@ import {
 import { StudentProfile } from '../types.ts';
 import { CurriculumExamModal } from './CurriculumExamModal.tsx';
 import { LessonViewerModal } from './LessonViewerModal.tsx';
+import { PrimaryLessonViewer } from './PrimaryLessonViewer.tsx';
+import { getPrimaryLesson, PrimaryLessonContent } from '../data/primaryStageData.ts';
+import '../data/primaryCurriculumInjector.ts';
 
 interface CurriculumExplorerProps {
   student: StudentProfile | null;
@@ -76,6 +79,9 @@ export const CurriculumExplorer: React.FC<CurriculumExplorerProps> = ({
   // Dedicated Interactive Lesson Viewer Modal / Study Drawer
   const [lessonViewerUnit, setLessonViewerUnit] = useState<UnitCurriculum | null>(null);
   const [lessonViewerInitialTab, setLessonViewerInitialTab] = useState<'vocab' | 'grammar' | 'literature' | 'skills'>('vocab');
+
+  // Primary Interactive Studio Lesson
+  const [activePrimaryLesson, setActivePrimaryLesson] = useState<PrimaryLessonContent | null>(null);
 
   // Audio Speech state
   const [playingWord, setPlayingWord] = useState<string | null>(null);
@@ -150,6 +156,40 @@ export const CurriculumExplorer: React.FC<CurriculumExplorerProps> = ({
   };
 
   const optionLetters: ('A' | 'B' | 'C' | 'D')[] = ['A', 'B', 'C', 'D'];
+
+  // Native Full-Page Lesson Experience (No modal, No backdrop)
+  if (activePrimaryLesson) {
+    return (
+      <PrimaryLessonViewer
+        lesson={activePrimaryLesson}
+        onBack={() => setActivePrimaryLesson(null)}
+        onClose={() => setActivePrimaryLesson(null)}
+        onExamComplete={(score) => {
+          if (student && onStudentUpdated) {
+            onStudentUpdated({
+              ...student,
+              totalScore: (student.totalScore || 0) + score * 10
+            });
+          }
+        }}
+      />
+    );
+  }
+
+  if (lessonViewerUnit) {
+    return (
+      <LessonViewerModal
+        unit={lessonViewerUnit}
+        isOpen={Boolean(lessonViewerUnit)}
+        initialTab={lessonViewerInitialTab}
+        onClose={() => setLessonViewerUnit(null)}
+        onTakeExam={(exam) => {
+          setLessonViewerUnit(null);
+          setActiveExamModal(exam);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300 select-none" dir="ltr">
@@ -309,7 +349,7 @@ export const CurriculumExplorer: React.FC<CurriculumExplorerProps> = ({
           <span className="text-xs font-bold text-slate-500 uppercase mr-1">Grade:</span>
           {availableGrades.map(catalog => (
             <button
-              key={catalog.grade}
+              key={`ce_grade_${catalog.grade}`}
               onClick={() => {
                 setSelectedGrade(catalog.grade);
                 setSelectedUnit(null);
@@ -1026,10 +1066,36 @@ export const CurriculumExplorer: React.FC<CurriculumExplorerProps> = ({
                   )}
                 </div>
 
+                {/* Primary Dedicated Studio Pill if Primary */}
+                {unit.stage === 'Primary' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const priLesson = getPrimaryLesson(`primary_${unit.grade}`, unit.unitNumber, 'connect', unit.semester);
+                      if (priLesson) {
+                        setActivePrimaryLesson(priLesson);
+                      } else {
+                        setLessonViewerUnit(unit);
+                        setLessonViewerInitialTab('vocab');
+                      }
+                    }}
+                    className="w-full py-1.5 px-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-black text-[11px] shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer hover:opacity-95 transition-opacity"
+                  >
+                    <span>✨ Connect 3-Tab Studio &amp; 5-Level Adaptive Exam</span>
+                  </button>
+                )}
+
                 {/* Actions */}
                 <div className="pt-2 border-t border-slate-100 flex items-center gap-2">
                   <button
                     onClick={() => {
+                      if (unit.stage === 'Primary') {
+                        const priLesson = getPrimaryLesson(`primary_${unit.grade}`, unit.unitNumber, 'connect', unit.semester);
+                        if (priLesson) {
+                          setActivePrimaryLesson(priLesson);
+                          return;
+                        }
+                      }
                       setLessonViewerUnit(unit);
                       setLessonViewerInitialTab('vocab');
                     }}
@@ -1078,20 +1144,6 @@ export const CurriculumExplorer: React.FC<CurriculumExplorerProps> = ({
             </div>
           )}
         </div>
-      )}
-
-      {/* 5. Interactive Lesson Viewer Modal / Study Drawer */}
-      {lessonViewerUnit && (
-        <LessonViewerModal
-          unit={lessonViewerUnit}
-          isOpen={Boolean(lessonViewerUnit)}
-          initialTab={lessonViewerInitialTab}
-          onClose={() => setLessonViewerUnit(null)}
-          onTakeExam={(exam) => {
-            setLessonViewerUnit(null);
-            setActiveExamModal(exam);
-          }}
-        />
       )}
 
       {/* 6. Exam Modal */}

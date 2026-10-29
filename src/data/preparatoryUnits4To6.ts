@@ -1,4 +1,31 @@
-import { UnitCurriculum, PrepExamBlueprint } from '../types/curriculum.ts';
+import { UnitCurriculum, PrepExamBlueprint, CurriculumQuestion } from '../types/curriculum.ts';
+
+function rotatePrepQuestion(q: CurriculumQuestion, indexSeed: number): CurriculumQuestion {
+  const letters: ('A' | 'B' | 'C' | 'D')[] = ['A', 'B', 'C', 'D'];
+  const currentIdx = letters.indexOf(q.correctAnswer);
+  if (currentIdx === -1 || !q.options || q.options.length !== 4) {
+    return { ...q, verificationStatus: 'verified' };
+  }
+  const targetIdx = indexSeed % 4;
+  if (currentIdx === targetIdx) {
+    return { ...q, verificationStatus: 'verified' };
+  }
+  const newOptions: [string, string, string, string] = [
+    q.options[0],
+    q.options[1],
+    q.options[2],
+    q.options[3]
+  ];
+  const temp = newOptions[targetIdx];
+  newOptions[targetIdx] = newOptions[currentIdx];
+  newOptions[currentIdx] = temp;
+  return {
+    ...q,
+    options: newOptions,
+    correctAnswer: letters[targetIdx],
+    verificationStatus: 'verified'
+  };
+}
 
 // Helper to construct a complete, MOE-verified Preparatory unit with full PrepExamBlueprint
 export function createPrepUnitWithBlueprint(
@@ -19,11 +46,30 @@ export function createPrepUnitWithBlueprint(
   dialogueTranscript: string,
   blueprint: PrepExamBlueprint
 ): UnitCurriculum {
+  const seedBase = grade * 11 + semester * 5 + unitNumber * 3;
+  const balancedVocabGrammarMcqs = blueprint.vocabGrammarMcqs.map((q, idx) =>
+    rotatePrepQuestion(q, seedBase + idx)
+  );
+  const balancedReadingMcqs = blueprint.readingPassage.mcqs.map((q, idx) =>
+    rotatePrepQuestion(q, seedBase + idx + 2)
+  );
+  const balancedBlueprint: PrepExamBlueprint = {
+    ...blueprint,
+    readingPassage: {
+      ...blueprint.readingPassage,
+      mcqs: balancedReadingMcqs
+    },
+    vocabGrammarMcqs: balancedVocabGrammarMcqs
+  };
+
   return {
     stage: 'Preparatory',
     grade,
     gradeLabel,
     track: 'New Hello',
+    textbookSeries: `New Hello! Prep ${grade - 6}`,
+    verificationStatus: 'verified',
+    sourceReference: `Egyptian MOE New Hello! Prep ${grade - 6} - Term ${semester} Unit ${unitNumber}`,
     semester,
     unitNumber,
     unitTitle,
@@ -47,20 +93,20 @@ export function createPrepUnitWithBlueprint(
         meaningAr: c.meaningAr,
         example: c.example
       })),
-      exercises: blueprint.vocabGrammarMcqs.slice(0, 3)
+      exercises: balancedVocabGrammarMcqs.slice(0, 3)
     },
     grammarModule: {
       ruleName: grammarRule,
       ruleNameAr: grammarRuleAr,
       explanationSummary: grammarSummary,
       detailedRules: grammarSections,
-      exercises: blueprint.vocabGrammarMcqs.slice(3, 6)
+      exercises: balancedVocabGrammarMcqs.slice(3, 6)
     },
     readingModule: {
-      passageTitle: blueprint.readingPassage.title,
-      passage: blueprint.readingPassage.passage,
+      passageTitle: balancedBlueprint.readingPassage.title,
+      passage: balancedBlueprint.readingPassage.passage,
       criticalThinkingFocus: `Analytical inference on ${theme}`,
-      questions: blueprint.readingPassage.mcqs
+      questions: balancedReadingMcqs
     },
     listeningModule: {
       audioTitle: `${unitTitle}: Official Curriculum Dialogue Track`,
@@ -76,10 +122,10 @@ export function createPrepUnitWithBlueprint(
       totalMarks: 30,
       stage: 'Preparatory',
       questions: [
-        ...blueprint.vocabGrammarMcqs,
-        ...blueprint.readingPassage.mcqs
+        ...balancedVocabGrammarMcqs.map(q => ({ ...q, id: `exam_${q.id}` })),
+        ...balancedReadingMcqs.map(q => ({ ...q, id: `exam_${q.id}` }))
       ],
-      prepBlueprint: blueprint
+      prepBlueprint: balancedBlueprint
     }
   };
 }

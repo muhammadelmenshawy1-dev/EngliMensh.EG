@@ -25,11 +25,278 @@ function createStandardUnit(
   ruleNameAr: string,
   keyWordsList: { word: string; meaningAr: string; partOfSpeech: string }[]
 ): UnitCurriculum {
+  const isPresentPerfect = ruleName.toLowerCase().includes('present perfect');
+  const isPassive = ruleName.toLowerCase().includes('passive');
+  const isModalDeduction = ruleName.toLowerCase().includes('modal') || ruleName.toLowerCase().includes('deduction');
+
+  const g1Question = isPresentPerfect
+    ? 'Dr. Nadia __________ in London for three years now, and she is still conducting research there.'
+    : isPassive
+    ? 'The investigative report __________ by the editorial board before yesterday’s broadcast.'
+    : isModalDeduction
+    ? 'The astronauts __________ experienced extreme weightlessness once the spacecraft entered orbit.'
+    : 'Pip __________ his legal documents reviewed by Mr. Jaggers before leaving for London.';
+
+  const g1Options: [string, string, string, string] = isPresentPerfect
+    ? ['has been working', 'had worked', 'is worked', 'works']
+    : isPassive
+    ? ['had been verified', 'has verifying', 'was verify', 'verified']
+    : isModalDeduction
+    ? ['must have', 'can’t have', 'shouldn’t', 'needn’t']
+    : ['had', 'made', 'let', 'forced'];
+
+  const g2Question = isPresentPerfect
+    ? 'How many diplomatic reports __________ the ambassador written since the summit began?'
+    : isPassive
+    ? 'Strict media ethics __________ across all national newsrooms at this very moment.'
+    : isModalDeduction
+    ? 'He __________ missed the train; I just saw him standing on the station platform.'
+    : 'Miss Havisham got the servants __________ the banquet hall untouched for decades.';
+
+  const g2Options: [string, string, string, string] = isPresentPerfect
+    ? ['has been', 'has', 'did', 'is']
+    : isPassive
+    ? ['enforced', 'are being enforced', 'have enforcing', 'were enforce']
+    : isModalDeduction
+    ? ['must have', 'can’t have', 'should have', 'would have']
+    : ['leave', 'to leave', 'left', 'leaving'];
+
+  const passageText = isPresentPerfect
+    ? 'When Egyptian engineers and scholars travel abroad for postgraduate fellowships, they often experience culture shock during their first months. Adapting to unfamiliar customs, weather patterns, and social routines requires patience and resilience. However, expatriates who actively engage with host communities while preserving their cultural identity soon become cultural ambassadors who bridge nations.'
+    : isPassive
+    ? 'In the digital age, investigative journalism plays a vital role in holding institutions accountable and informing the public. Before any news article is published by a reputable newspaper, its sources must be independently verified by editors. Sensational headlines and unverified rumors can mislead citizens, whereas objective reporting builds lasting public trust.'
+    : isModalDeduction
+    ? 'Aerospace engineering has transformed humanity’s reach beyond Earth. Inside an orbiting space station, astronauts live in conditions of weightlessness where ordinary tasks require specialized training. Engineers on the ground monitor telemetry data continuously to ensure that every life-support system functions safely during long-duration missions.'
+    : 'In Charles Dickens’s Great Expectations, young Pip believes that sudden wealth will make him a true gentleman. Yet as the narrative unfolds in London, he discovers that authentic nobility comes from loyalty, humility, and gratitude toward selfless friends like Joe Gargery rather than superficial social status.';
+
+  const r1Q = isPresentPerfect
+    ? 'What challenge do scholars often face during their first months living abroad?'
+    : isPassive
+    ? 'What must editors do before an investigative news article is published?'
+    : isModalDeduction
+    ? 'What condition do astronauts experience inside an orbiting space station?'
+    : 'What lesson does Pip ultimately learn in Great Expectations?';
+
+  const r1Opts: [string, string, string, string] = isPresentPerfect
+    ? ['Culture shock and adapting to unfamiliar customs', 'Forgetting how to read their native language', 'Losing their passports at the airport', 'Refusing to attend university lectures']
+    : isPassive
+    ? ['Independently verify all sources and facts', 'Invent sensational rumors to sell more copies', 'Delete all interviews with witnesses', 'Publish articles without reading them']
+    : isModalDeduction
+    ? ['Weightlessness requiring specialized training', 'Heavy snowstorms inside the cabin', 'Complete lack of radio communication', 'Underwater ocean pressure']
+    : ['True nobility comes from loyalty and humility rather than wealth', 'Money alone guarantees happiness and loyal friends', 'London is smaller than his villageforge', 'Education is unnecessary for a gentleman'];
+
+  const r2Q = isPresentPerfect
+    ? 'According to the passage, how can expatriates succeed in their host communities?'
+    : isPassive
+    ? 'What is the danger of sensational headlines and unverified rumors?'
+    : isModalDeduction
+    ? 'Why do ground engineers monitor telemetry data continuously?'
+    : 'Who represents genuine loyalty and moral integrity in Pip’s life?';
+
+  const r2Opts: [string, string, string, string] = isPresentPerfect
+    ? ['By isolating themselves from everyone', 'By engaging positively while preserving their cultural identity', 'By abandoning their academic research immediately', 'By avoiding speaking English in public']
+    : isPassive
+    ? ['They make newspapers cheaper to print', 'They can mislead citizens and erode public trust', 'They improve grammatical accuracy', 'They help readers verify scientific facts']
+    : isModalDeduction
+    ? ['To sell commercial tickets to tourists', 'To ensure every life-support system functions safely', 'To turn off the station’s solar panels', 'To delay the astronauts’ return to Earth']
+    : ['Compeyson', 'Joe Gargery', 'Bentley Drummle', 'Orlick'];
+
+  const unitIdPrefix = `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}`;
+
+  const vocabExercises = [
+    {
+      id: `${unitIdPrefix}_v1`,
+      skill: 'Vocabulary' as const,
+      question: `Which word best corresponds to the Arabic meaning: "${keyWordsList[0]?.meaningAr}"?`,
+      options: [keyWordsList[0]?.word || 'concept', 'distraction', 'obstacle', 'penalty'] as [string, string, string, string],
+      correctAnswer: 'A' as const,
+      explanation: `The correct target vocabulary term is "${keyWordsList[0]?.word}".`,
+      verificationStatus: 'corrected_pending_verification' as const
+    },
+    {
+      id: `${unitIdPrefix}_v2`,
+      skill: 'Vocabulary' as const,
+      question: `Complete the sentence: "Dedicated researchers work consistently to __________ steady progress."`,
+      options: ['break', 'make', 'lose', 'drop'] as [string, string, string, string],
+      correctAnswer: 'B' as const,
+      explanation: 'The standard academic collocation is "make steady progress".',
+      verificationStatus: 'corrected_pending_verification' as const
+    },
+    {
+      id: `${unitIdPrefix}_v3`,
+      skill: 'Vocabulary' as const,
+      question: `In the context of "${unitTitle}", the term "${keyWordsList[1]?.word || 'concept'}" means:`,
+      options: ['something trivial', 'an accidental error', keyWordsList[1]?.meaningAr || 'المفهوم الرئيسي', 'a minor delay'] as [string, string, string, string],
+      correctAnswer: 'C' as const,
+      explanation: `The accurate Arabic meaning for "${keyWordsList[1]?.word}" is "${keyWordsList[1]?.meaningAr}".`,
+      verificationStatus: 'corrected_pending_verification' as const
+    },
+    {
+      id: `${unitIdPrefix}_v4`,
+      skill: 'Vocabulary' as const,
+      question: `A person who shows perseverance, care, and conscientious effort in their work is described as:`,
+      options: ['apathetic', 'negligent', 'reckless', 'diligent'] as [string, string, string, string],
+      correctAnswer: 'D' as const,
+      explanation: '"Diligent" means having or showing care and conscientiousness in one’s work or duties.',
+      verificationStatus: 'corrected_pending_verification' as const
+    }
+  ];
+
+  const grammarExercises = [
+    {
+      id: `${unitIdPrefix}_g1`,
+      skill: 'Grammar' as const,
+      question: g1Question,
+      options: g1Options,
+      correctAnswer: 'A' as const,
+      explanation: `"${g1Options[0]}" accurately applies ${ruleName} in context.`,
+      verificationStatus: 'corrected_pending_verification' as const
+    },
+    {
+      id: `${unitIdPrefix}_g2`,
+      skill: 'Grammar' as const,
+      question: g2Question,
+      options: g2Options,
+      correctAnswer: 'B' as const,
+      explanation: `"${g2Options[1]}" is the required grammatical form for ${ruleName}.`,
+      verificationStatus: 'corrected_pending_verification' as const
+    },
+    {
+      id: `${unitIdPrefix}_g3`,
+      skill: 'Grammar' as const,
+      question: `Choose the grammatically accurate sentence: "Hardly had the conference started __________ the keynote speaker took the stage."`,
+      options: ['than', 'where', 'when', 'then'] as [string, string, string, string],
+      correctAnswer: 'C' as const,
+      explanation: 'The correlative inversion structure is "Hardly had + subject + P.P. ... when + Past Simple".',
+      verificationStatus: 'corrected_pending_verification' as const
+    },
+    {
+      id: `${unitIdPrefix}_g4`,
+      skill: 'Grammar' as const,
+      question: `Complete the sentence: "Neither the editor nor the journalists __________ aware of the sudden schedule change yesterday."`,
+      options: ['is', 'has been', 'was', 'were'] as [string, string, string, string],
+      correctAnswer: 'D' as const,
+      explanation: 'With "Neither ... nor ...", the verb agrees with the closer subject ("the journalists" -> plural past "were").',
+      verificationStatus: 'corrected_pending_verification' as const
+    }
+  ];
+
+  const readingQuestions = [
+    {
+      id: `${unitIdPrefix}_r1`,
+      skill: 'Reading' as const,
+      question: r1Q,
+      options: r1Opts,
+      correctAnswer: 'A' as const,
+      explanation: `Directly stated in the opening lines of the passage on ${unitTitle}.`,
+      verificationStatus: 'corrected_pending_verification' as const
+    },
+    {
+      id: `${unitIdPrefix}_r2`,
+      skill: 'Reading' as const,
+      question: r2Q,
+      options: r2Opts,
+      correctAnswer: 'B' as const,
+      explanation: `Supported by the contextual details in the second half of the passage.`,
+      verificationStatus: 'corrected_pending_verification' as const
+    },
+    {
+      id: `${unitIdPrefix}_r3`,
+      skill: 'Reading' as const,
+      question: `In the passage, the word "${keyWordsList[0]?.word}" is most closely associated with:`,
+      options: ['culinary recipes', 'ancient folklore', theme, 'traffic rules'] as [string, string, string, string],
+      correctAnswer: 'C' as const,
+      explanation: `The passage uses "${keyWordsList[0]?.word}" within the context of ${theme}.`,
+      verificationStatus: 'corrected_pending_verification' as const
+    },
+    {
+      id: `${unitIdPrefix}_r4`,
+      skill: 'Reading' as const,
+      question: `What is the writer’s overall tone in this passage?`,
+      options: ['Sarcastic and dismissive', 'Hostile and angry', 'Confused and uncertain', 'Informative, analytical, and objective'] as [string, string, string, string],
+      correctAnswer: 'D' as const,
+      explanation: 'The writer presents clear, analytical observations in an objective academic tone.',
+      verificationStatus: 'corrected_pending_verification' as const
+    }
+  ];
+
+  const listeningQuestions = [
+    {
+      id: `${unitIdPrefix}_l1`,
+      skill: 'Listening' as const,
+      question: `In the audio dialogue, what topic are Mr. Hazem and Salma discussing?`,
+      options: [
+        `${unitTitle} (${theme})`,
+        `Booking a summer holiday in Spain`,
+        `Repairing a broken bicycle tire`,
+        `Ordering dinner from a restaurant`
+      ] as [string, string, string, string],
+      correctAnswer: 'A' as const,
+      explanation: `Mr. Hazem introduces the review of ${unitTitle}.`,
+      verificationStatus: 'corrected_pending_verification' as const
+    },
+    {
+      id: `${unitIdPrefix}_l2`,
+      skill: 'Listening' as const,
+      question: `Which grammatical structure does Mr. Hazem remind Salma to apply carefully?`,
+      options: [
+        `Primary school alphabet phonics`,
+        `${ruleName}`,
+        `Counting numbers from one to ten`,
+        `Imperative classroom commands`
+      ] as [string, string, string, string],
+      correctAnswer: 'B' as const,
+      explanation: `Mr. Hazem specifically highlights ${ruleName}.`,
+      verificationStatus: 'corrected_pending_verification' as const
+    },
+    {
+      id: `${unitIdPrefix}_l3`,
+      skill: 'Listening' as const,
+      question: `How does Salma connect the unit’s vocabulary ("${keyWordsList[0]?.word}" and "${keyWordsList[1]?.word}") to her learning?`,
+      options: [
+        `She ignores the words completely`,
+        `She only memorizes their spelling backwards`,
+        `She applies them to real-world situations in Egypt`,
+        `She translates them into French`
+      ] as [string, string, string, string],
+      correctAnswer: 'C' as const,
+      explanation: 'Salma notes that the unit connects classroom learning directly to real-world situations.',
+      verificationStatus: 'corrected_pending_verification' as const
+    },
+    {
+      id: `${unitIdPrefix}_l4`,
+      skill: 'Listening' as const,
+      question: `What does Salma plan to do after the discussion with her teacher?`,
+      options: [
+        `Skip the upcoming unit test`,
+        `Leave her workbook blank`,
+        `Stop attending English classes`,
+        `Practice the vocabulary and grammar exercises thoroughly`
+      ] as [string, string, string, string],
+      correctAnswer: 'D' as const,
+      explanation: 'Salma says she will practice the drills thoroughly.',
+      verificationStatus: 'corrected_pending_verification' as const
+    }
+  ];
+
+  const allUnitQuestions = [
+    ...vocabExercises,
+    ...grammarExercises,
+    ...readingQuestions,
+    ...listeningQuestions
+  ].map(q => ({
+    ...q,
+    id: `exam_${q.id}`
+  }));
+
   return {
     stage,
     grade,
     gradeLabel,
     track,
+    textbookSeries: `General Secondary ${grade - 9}`,
+    verificationStatus: 'corrected_pending_verification',
+    sourceReference: `Supplemental Term 2 Enrichment Unit (${gradeLabel} - Unit ${unitNumber}: ${unitTitle}) — Pending Term 2 Official Page Citation`,
     semester,
     unitNumber,
     unitTitle,
@@ -41,13 +308,13 @@ function createStandardUnit(
         partOfSpeech: kw.partOfSpeech,
         meaningEn: `Key target lexical item for ${unitTitle}`,
         meaningAr: kw.meaningAr,
-        exampleSentence: `Students use the word "${kw.word}" in contextual sentences.`
+        exampleSentence: `In "${unitTitle}", the term "${kw.word}" is essential for discussing ${theme.toLowerCase()}.`
       })),
       collocations: [
         {
-          phrase: `practice ${keyWordsList[0]?.word || 'vocabulary'}`,
-          meaningAr: `يمارس ويطبق مفردات الوحدة`,
-          example: `Active learners practice ${keyWordsList[0]?.word || 'vocabulary'} in daily speech.`
+          phrase: `cope with ${keyWordsList[0]?.word || 'challenges'}`,
+          meaningAr: `يتعامل بوعي مع ${keyWordsList[0]?.meaningAr || 'التحديات'}`,
+          example: `Successful individuals learn how to cope with ${keyWordsList[0]?.word || 'challenges'} effectively.`
         },
         {
           phrase: 'make steady progress',
@@ -55,40 +322,7 @@ function createStandardUnit(
           example: 'Consistent study helps learners make steady progress in English fluency.'
         }
       ],
-      exercises: [
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_v1`,
-          skill: 'Vocabulary',
-          question: `Which word best corresponds to the meaning: "${keyWordsList[0]?.meaningAr}"?`,
-          options: [keyWordsList[0]?.word || 'Option A', 'distraction', 'obstacle', 'penalty'],
-          correctAnswer: 'A',
-          explanation: `The correct target vocabulary term is "${keyWordsList[0]?.word}".`
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_v2`,
-          skill: 'Vocabulary',
-          question: `Complete the sentence: "Learners should work consistently to __________ steady progress."`,
-          options: ['break', 'make', 'lose', 'drop'],
-          correctAnswer: 'B',
-          explanation: 'The standard academic collocation is "make steady progress".'
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_v3`,
-          skill: 'Vocabulary',
-          question: `In the context of ${unitTitle}, the word "${keyWordsList[1]?.word || 'concept'}" means:`,
-          options: ['something trivial', 'an incorrect guess', keyWordsList[1]?.meaningAr || 'المفهوم الرئيسي', 'a minor mistake'],
-          correctAnswer: 'C',
-          explanation: `The pedagogical translation for "${keyWordsList[1]?.word}" is "${keyWordsList[1]?.meaningAr}".`
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_v4`,
-          skill: 'Vocabulary',
-          question: `Which term best describes the central theme of ${unitTitle}?`,
-          options: ['Confusion', 'Indifference', 'Carelessness', theme],
-          correctAnswer: 'D',
-          explanation: `The central theme of this unit is "${theme}".`
-        }
-      ]
+      exercises: vocabExercises
     },
     grammarModule: {
       ruleName,
@@ -99,322 +333,36 @@ function createStandardUnit(
           title: 'Core Pattern & Form',
           explanation: `Mastering structural syntax and communicative deployment for ${ruleName}.`,
           examples: [
-            `Standard usage example for ${ruleName} according to MOE specifications.`,
-            `Common error caution and correction when applying ${ruleName}.`
+            g1Question.replace('__________', g1Options[0]),
+            g2Question.replace('__________', g2Options[1])
           ]
         }
       ],
-      exercises: [
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_g1`,
-          skill: 'Grammar',
-          question: `Which sentence demonstrates the grammatically accurate deployment of ${ruleName}?`,
-          options: [
-            `Correct model structure illustrating ${ruleName}`,
-            `Incorrect verb form missing auxiliary markers`,
-            `Confused word order violating syntax rules`,
-            `Mismatched subject-verb agreement clause`
-          ],
-          correctAnswer: 'A',
-          explanation: `Choice A adheres strictly to the rules of ${ruleName}.`
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_g2`,
-          skill: 'Grammar',
-          question: `Identify the correct auxiliary or connector required for ${ruleName}:`,
-          options: ['incorrect auxiliary', 'standard target form', 'unrelated conjunction', 'redundant preposition'],
-          correctAnswer: 'B',
-          explanation: `The correct target auxiliary form for ${ruleName} is highlighted in Choice B.`
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_g3`,
-          skill: 'Grammar',
-          question: `Choose the correct option: In ${ruleName}, time adverbs typically indicate:`,
-          options: ['irrelevant past', 'impossible future', 'precise temporal or aspectual relationship', 'unrelated negation'],
-          correctAnswer: 'C',
-          explanation: 'Aspectual and temporal markers establish the correct verb sequence.'
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_g4`,
-          skill: 'Grammar',
-          question: `Which error must students avoid when formulating ${ruleName}?`,
-          options: ['Reading carefully', 'Checking spelling', 'Using capital letters', 'Omitting the mandatory auxiliary or inflectional suffix'],
-          correctAnswer: 'D',
-          explanation: 'Omitting the necessary inflectional marker breaks grammatical correctness.'
-        }
-      ]
+      exercises: grammarExercises
     },
     readingModule: {
-      passageTitle: `${unitTitle}: Exploring Perspectives`,
-      passage: `In the modern Egyptian educational framework, language acquisition is intimately bound to critical cognition. Through the thematic study of ${theme}, learners develop both lexical breadth and analytical insight. Authentic texts encourage students to synthesize information, deduce contextual meaning, and formulate reasoned responses to contemporary global and local issues.`,
+      passageTitle: `${unitTitle}: Thematic Reading Passage`,
+      passage: passageText,
       criticalThinkingFocus: `Evaluating contextual perspectives on ${theme}.`,
-      questions: [
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_r1`,
-          skill: 'Reading',
-          question: `What is the primary pedagogical objective of exploring ${theme}?`,
-          options: [
-            `Developing lexical breadth alongside analytical and critical cognition`,
-            `Encouraging students to abandon written literature`,
-            `Restricting study solely to mechanical memorization`,
-            `Eliminating grammar discussions in the classroom`
-          ],
-          correctAnswer: 'A',
-          explanation: 'The passage highlights combining lexical acquisition with critical cognition.'
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_r2`,
-          skill: 'Reading',
-          question: `How do authentic thematic passages support second language development?`,
-          options: [
-            `By making reading tests completely unnecessary`,
-            `By encouraging students to deduce contextual nuances and synthesize ideas`,
-            `By replacing all spoken language in schools`,
-            `By teaching outdated slang exclusively`
-          ],
-          correctAnswer: 'B',
-          explanation: 'Authentic texts train learners to deduce meaning and synthesize concepts.'
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_r3`,
-          skill: 'Reading',
-          question: `What cognitive skill is particularly nurtured through the study of ${unitTitle}?`,
-          options: [
-            `Speed typing without comprehension`,
-            `Memorizing dictionary pages without context`,
-            `Formulating reasoned responses to real-world local and global issues`,
-            `Ignoring questions from examiners`
-          ],
-          correctAnswer: 'C',
-          explanation: 'The text emphasizes formulating reasoned responses to real-world themes.'
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_r4`,
-          skill: 'Reading',
-          question: `According to the passage, modern Egyptian education connects language acquisition directly to:`,
-          options: [
-            `passive repetition alone`,
-            `commercial advertising slogans`,
-            `irrelevant fantasy folklore`,
-            `critical thinking and contextual awareness`
-          ],
-          correctAnswer: 'D',
-          explanation: 'Language learning is linked directly to critical thinking.'
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_r5`,
-          skill: 'Reading',
-          question: `What conclusion can be drawn regarding effective language practice?`,
-          options: [
-            `Contextualized thematic reading deepens long-term retention and conceptual mastery`,
-            `Students should avoid reading complete sentences`,
-            `Exams should never include reading passages`,
-            `Vocabulary has no relation to reading fluency`
-          ],
-          correctAnswer: 'A',
-          explanation: 'Contextual reading fosters deeper understanding and enduring retention.'
-        }
-      ]
+      questions: readingQuestions
     },
     listeningModule: {
-      audioTitle: `${unitTitle}: Audio Dialogue & Listening Comprehension`,
+      audioTitle: `${unitTitle}: Classroom Dialogue`,
       speakerRoles: 'Teacher (Mr. Hazem) & Student (Salma)',
-      transcript: `Mr. Hazem: Good morning, Salma. Today we are reviewing the core concepts of ${unitTitle}. What did you find most engaging?
+      transcript: `Mr. Hazem: Good morning, Salma. Today we are reviewing the core concepts of ${unitTitle}, including terms like "${keyWordsList[0]?.word}" and "${keyWordsList[1]?.word}". What did you find most interesting?
 Salma: Good morning, Mr. Hazem. I was fascinated by the practical applications of ${theme}. It connects our classroom learning directly to real-world situations in Egypt!
-Mr. Hazem: Precisely. Remember that mastering both the vocabulary and the grammatical rules for ${ruleName} gives you the confidence to communicate fluently.
+Mr. Hazem: Precisely. Remember that mastering both the vocabulary and the grammatical rules for ${ruleName} gives you the confidence to communicate accurately.
 Salma: Thank you, Mr. Hazem! I will practice these drills thoroughly.`,
       durationApprox: '1 min 45 secs',
-      exercises: [
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_l1`,
-          skill: 'Listening',
-          question: `What aspect of the lesson did Salma find especially engaging?`,
-          options: [
-            `Connecting the theme of ${theme} directly to practical real-world situations`,
-            `Leaving the classroom earlier than other students`,
-            `Skipping the grammar explanation entirely`,
-            `Watching a silent cartoon film`
-          ],
-          correctAnswer: 'A',
-          explanation: 'Salma stated she was fascinated by the real-world applications of the theme.'
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_l2`,
-          skill: 'Listening',
-          question: `What two components did Mr. Hazem urge Salma to master for fluent communication?`,
-          options: [
-            `Painting brushes and canvas`,
-            `Target vocabulary and the grammatical structures of ${ruleName}`,
-            `Typing speed and mobile phone games`,
-            `Singing loud songs during exams`
-          ],
-          correctAnswer: 'B',
-          explanation: 'Mr. Hazem emphasized vocabulary alongside the grammar rules.'
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_l3`,
-          skill: 'Listening',
-          question: `What was Salma’s final stated resolution at the end of the conversation?`,
-          options: [
-            `To cancel her school registration`,
-            `To avoid speaking English to her classmates`,
-            `To practice the communicative exercises thoroughly`,
-            `To forget everything she learned`
-          ],
-          correctAnswer: 'C',
-          explanation: 'Salma resolved to practice the drills thoroughly.'
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_l4`,
-          skill: 'Listening',
-          question: `What educational tone best characterizes the dialogue between the teacher and student?`,
-          options: [
-            `Angry and confrontational`,
-            `Bored and indifferent`,
-            `Confused and unhelpful`,
-            `Encouraging, supportive, and academically focused`
-          ],
-          correctAnswer: 'D',
-          explanation: 'The conversation is positive, pedagogical, and supportive.'
-        }
-      ]
+      exercises: listeningQuestions
     },
     unitExam: {
-      examId: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_exam`,
+      examId: `${unitIdPrefix}_exam`,
       examTitle: `${gradeLabel} - Unit ${unitNumber} Assessment: ${unitTitle}`,
       examTitleAr: `امتحان تقييم الوحدة ${unitNumber} - ${gradeLabel}`,
       durationMinutes: 30,
       totalMarks: 32,
-      questions: [
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_ex1`,
-          skill: 'Vocabulary',
-          question: `Select the word that correctly fits the context: "${keyWordsList[0]?.word || 'Target word'}" refers to:`,
-          options: [keyWordsList[0]?.meaningAr || 'المعنى المستهدف', 'خطأ عابر', 'تسلية مؤقتة', 'حالة سلبية'],
-          correctAnswer: 'A',
-          explanation: `The pedagogical Arabic meaning is ${keyWordsList[0]?.meaningAr}.`
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_ex2`,
-          skill: 'Grammar',
-          question: `In the context of ${ruleName}, which structure represents correct affirmative syntax?`,
-          options: ['Incorrect inverted form', 'Standard target grammatical structure', 'Missing auxiliary verb form', 'Redundant double modal'],
-          correctAnswer: 'B',
-          explanation: `Choice B adheres strictly to the rules of ${ruleName}.`
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_ex3`,
-          skill: 'Reading',
-          question: `According to the unit reading passage, studying ${theme} enables learners to:`,
-          options: ['Ignore societal issues', 'Avoid taking examinations', 'Synthesize ideas and formulate critical responses', 'Rely solely on mechanical memorization'],
-          correctAnswer: 'C',
-          explanation: 'The reading emphasizes synthesizing ideas and critical thinking.'
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_ex4`,
-          skill: 'Listening',
-          question: `Mr. Hazem emphasized that communicative confidence arises from mastering vocabulary and ___________.`,
-          options: ['physical sports', 'social media browsing', 'computer games', 'accurate grammatical structures'],
-          correctAnswer: 'D',
-          explanation: 'Communicative fluency requires combining vocabulary with grammatical mastery.'
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_ex5`,
-          skill: 'Vocabulary',
-          question: `The collocation "make steady __________" expresses continuous improvement.`,
-          options: ['progress', 'danger', 'damage', 'mistakes'],
-          correctAnswer: 'A',
-          explanation: 'The correct collocation is "make steady progress".'
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_ex6`,
-          skill: 'Grammar',
-          question: `Identify the appropriate negative formulation corresponding to ${ruleName}:`,
-          options: ['Ungrammatical double negative', 'Standard grammatically correct negative form', 'Fragment lacking main predicate', 'Misplaced adverbial particle'],
-          correctAnswer: 'B',
-          explanation: 'Choice B correctly negates the target verb structure.'
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_ex7`,
-          skill: 'Reading',
-          question: `The primary benefit of contextualized thematic reading in modern education is that it:`,
-          options: ['Eliminates the need for teachers', 'Makes textbooks obsolete', 'Fosters deeper cognitive understanding and long-term vocabulary retention', 'Shortens the academic school year'],
-          correctAnswer: 'C',
-          explanation: 'Contextual reading deepens conceptual mastery and vocabulary retention.'
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_ex8`,
-          skill: 'Listening',
-          question: `Salma expressed enthusiasm because the curriculum topics connect directly to:`,
-          options: ['Ancient mythology only', 'Foreign video games', 'Fictional superhero movies', 'Real-world situations and contemporary Egyptian society'],
-          correctAnswer: 'D',
-          explanation: 'Salma highlighted the direct connection to real-world applications.'
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_ex9`,
-          skill: 'Vocabulary',
-          question: `Which term represents the target concept "${keyWordsList[1]?.meaningAr || 'Concept'}"?`,
-          options: [keyWordsList[1]?.word || 'Target', 'Hesitation', 'Orphanage', 'Eviction'],
-          correctAnswer: 'A',
-          explanation: `The target lexical item is "${keyWordsList[1]?.word}".`
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_ex10`,
-          skill: 'Grammar',
-          question: `When answering a question formulated with ${ruleName}, the response should maintain:`,
-          options: ['Random verb tenses', 'Consistent aspectual and tense agreement', 'Only nouns without verbs', 'No punctuation whatsoever'],
-          correctAnswer: 'B',
-          explanation: 'Tense and aspect consistency must be maintained across question and response.'
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_ex11`,
-          skill: 'Reading',
-          question: `Critical reading questions in the Egyptian national assessment assess the student’s ability to:`,
-          options: ['Copy the first sentence of the text verbatim', 'Guess randomly without reading', 'Analyze nuances, infer implicit meanings, and evaluate perspectives', 'Count the total number of words on the page'],
-          correctAnswer: 'C',
-          explanation: 'Higher-order thinking questions measure inference, evaluation, and analysis.'
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_ex12`,
-          skill: 'Listening',
-          question: `What strategy did Salma decide to implement to ensure optimal mastery of the unit?`,
-          options: ['Postponing all revision until exam morning', 'Leaving her assignments incomplete', 'Skipping all audio listening tracks', 'Practicing communicative and grammatical exercises diligently'],
-          correctAnswer: 'D',
-          explanation: 'Salma resolved to practice the communicative exercises thoroughly.'
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_ex13`,
-          skill: 'Vocabulary',
-          question: `A student who demonstrates commitment and hard work in their studies is described as:`,
-          options: ['diligent', 'apathetic', 'lethargic', 'careless'],
-          correctAnswer: 'A',
-          explanation: '"Diligent" means showing care and conscientiousness in one’s work.'
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_ex14`,
-          skill: 'Grammar',
-          question: `Which option demonstrates accurate punctuation and clause linkage in ${ruleName}?`,
-          options: ['Run-on sentence lacking commas', 'Correctly punctuated complex sentence structure', 'Comma splice connecting two independent clauses without conjunction', 'Unfinished sentence fragment'],
-          correctAnswer: 'B',
-          explanation: 'Choice B demonstrates correct syntactic linkage and punctuation.'
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_ex15`,
-          skill: 'Reading',
-          question: `The ultimate objective of the New Hello and Connect curricula is to empower learners to:`,
-          options: ['Memorize isolated grammar rules in isolation', 'Avoid using English outside the classroom', 'Communicate effectively and think critically in an interconnected world', 'Replace their mother tongue entirely'],
-          correctAnswer: 'C',
-          explanation: 'The objective is effective communication and critical thinking.'
-        },
-        {
-          id: `${stage.toLowerCase()}_g${grade}_t${semester}_u${unitNumber}_ex16`,
-          skill: 'Listening',
-          question: `The overall tone of the classroom dialogue reflects a learning environment founded on:`,
-          options: ['Fear and severe punishment', 'Strict memorization without discussion', 'Total confusion and noise', 'Active engagement, encouragement, and collaborative guidance'],
-          correctAnswer: 'D',
-          explanation: 'The classroom environment models active engagement and constructive guidance.'
-        }
-      ]
+      questions: allUnitQuestions
     }
   };
 }
@@ -459,7 +407,12 @@ export const generalSecondaryCatalog: GradeCurriculumCatalog[] = [
       {
         semester: 2,
         semesterLabel: 'Term 2 - الفصل الدراسي الثاني (Units 7 to 12 + Revision)',
-        units: secondary1Term2Units.map(u => ({ ...u, track: 'General Secondary' as const, secondaryPath: 'general_secondary' as const })),
+        units: secondary1Term2Units.map(u => ({
+          ...u,
+          track: 'General Secondary' as const,
+          secondaryPath: 'general_secondary' as const,
+          verificationStatus: 'corrected_pending_verification' as const
+        })),
         revisionTitle: 'Term 2 Comprehensive Final Assessment',
         revisionExam: sec1Term2RevisionExam
       }
@@ -482,13 +435,13 @@ export const generalSecondaryCatalog: GradeCurriculumCatalog[] = [
       },
       {
         semester: 2,
-        semesterLabel: 'Term 2 - الفصل الدراسي الثاني',
+        semesterLabel: 'Term 2 - الفصل الدراسي الثاني (Units 7 & 8)',
         units: [
-          createStandardUnit('Secondary', 11, 'Secondary 2', 'General Secondary', 2, 4, 'Living and Working Abroad', 'العمل والإقامة في الخارج (التكيف الثقافي)', 'Culture shock, international diplomacy, expatriates', 'Present Perfect Simple vs. Present Perfect Continuous', 'المضارع التام البسيط والمستمر والفروق الدقيقة', [
+          createStandardUnit('Secondary', 11, 'Secondary 2', 'General Secondary', 2, 7, 'Living and Working Abroad', 'العمل والإقامة في الخارج (التكيف الثقافي)', 'Culture shock, international diplomacy, expatriates', 'Present Perfect Simple vs. Present Perfect Continuous', 'المضارع التام البسيط والمستمر والفروق الدقيقة', [
             { word: 'culture shock', meaningAr: 'صدمة التغير الثقافي', partOfSpeech: 'noun' },
             { word: 'expatriate', meaningAr: 'مغترب يعمل خارج وطنه', partOfSpeech: 'noun' }
           ]),
-          createStandardUnit('Secondary', 11, 'Secondary 2', 'General Secondary', 2, 5, 'The Power of the Press', 'سلطة الصحافة والإعلام الرقمي', 'Investigative journalism, ethical reporting, fake news', 'Passive Voice across all continuous and perfect tenses', 'المبني للمجهول في جميع الأزمنة المتقدمة', [
+          createStandardUnit('Secondary', 11, 'Secondary 2', 'General Secondary', 2, 8, 'The Power of the Press', 'سلطة الصحافة والإعلام الرقمي', 'Investigative journalism, ethical reporting, fake news', 'Passive Voice across all continuous and perfect tenses', 'المبني للمجهول في جميع الأزمنة المتقدمة', [
             { word: 'investigative', meaningAr: 'صحافة استقصائية دقيقة', partOfSpeech: 'adjective' },
             { word: 'censorship', meaningAr: 'الرقابة الإعلامية', partOfSpeech: 'noun' }
           ])
@@ -513,7 +466,7 @@ export const generalSecondaryCatalog: GradeCurriculumCatalog[] = [
       },
       {
         semester: 2,
-        semesterLabel: 'Term 2 - الفصل الدراسي الثاني (Units 7 to 12 + Final Cumulative National Bank)',
+        semesterLabel: 'Term 2 - الفصل الدراسي الثاني (Units 7 & 8 + Final Cumulative National Bank)',
         units: [
           createStandardUnit('Secondary', 12, 'Secondary 3', 'General Secondary', 2, 7, 'Reaching for the Stars', 'بلوغ النجوم وتحقيق المستحيل', 'Aviation history, aerospace engineering, grit', 'Modal verbs of deduction in the past (must have, can’t have, might have)', 'أفعال الاستنتاج في الماضي مع التصريف الثالث', [
             { word: 'weightlessness', meaningAr: 'انعدام الجاذبية والوزن', partOfSpeech: 'noun' },
