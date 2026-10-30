@@ -25,7 +25,7 @@ import {
   saveStudentAvatar,
   removeStudentAvatar,
 } from '../services/studentStorage.ts';
-import { flushCloudSyncQueue, getCustomWebhookUrl, setCustomWebhookUrl } from '../services/cloudSync.ts';
+import { flushCloudSyncQueue, getCustomWebhookUrl, setCustomWebhookUrl, OFFICIAL_SHEETS_URL, DEFAULT_WEBHOOK_URL } from '../services/cloudSync.ts';
 import { compressImageToAvatar } from '../utils/imageUtils.ts';
 
 interface StudentProfileViewProps {
@@ -120,7 +120,10 @@ export const StudentProfileView: React.FC<StudentProfileViewProps> = ({
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncMessage, setSyncMessage] = useState<string>('');
   const [showWebhookConfig, setShowWebhookConfig] = useState<boolean>(false);
-  const [webhookInput, setWebhookInput] = useState<string>(getCustomWebhookUrl());
+  const [webhookInput, setWebhookInput] = useState<string>(() => {
+    const current = getCustomWebhookUrl();
+    return !current || current === DEFAULT_WEBHOOK_URL ? OFFICIAL_SHEETS_URL : current;
+  });
 
   const handleSyncNow = async () => {
     setIsSyncing(true);

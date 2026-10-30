@@ -7,6 +7,10 @@
 const SYNC_QUEUE_KEY = 'englimensh_cloud_sync_queue';
 const WEBHOOK_STORAGE_KEY = 'englimensh_custom_webhook_url';
 
+// Official Google Apps Script Web App for EngliMensh Live Google Sheets Sync
+export const OFFICIAL_SHEETS_URL =
+  'https://script.google.com/macros/s/AKfycbzQhr11qqZ3aN-x4lkyfZQFZvRHuhdTAUc-4Fsr3fMwBOIcp-a30MODWKJsAFhfdHlJ/exec';
+
 // Placeholder demo URL — treated as unconfigured until a real endpoint is set
 export const DEFAULT_WEBHOOK_URL =
   'https://script.google.com/macros/s/AKfycby-EngliMensh-Sec1-DemoSync/exec';
@@ -27,6 +31,11 @@ export interface CloudSyncPayload {
   platform: string;
   retryCount?: number;
   lastAttemptAt?: string;
+  section?: string;
+  eventAction?: string;
+  details?: string;
+  xp?: number;
+  device?: string;
 }
 
 export interface CloudSyncStatus {
@@ -39,7 +48,9 @@ export const getCustomWebhookUrl = (): string => {
   if (typeof window === 'undefined') return '';
   const stored = (localStorage.getItem(WEBHOOK_STORAGE_KEY) || '').trim();
   const envUrl = (
-    ((import.meta as any).env?.VITE_CLOUD_SYNC_WEBHOOK_URL as string | undefined) || ''
+    ((import.meta as any).env?.VITE_SHEETS_WEBHOOK_URL as string | undefined) ||
+    ((import.meta as any).env?.VITE_CLOUD_SYNC_WEBHOOK_URL as string | undefined) ||
+    ''
   ).trim();
   return stored || envUrl || DEFAULT_WEBHOOK_URL;
 };
@@ -51,6 +62,52 @@ export const isWebhookConfigured = (): boolean => {
   }
   return url.startsWith('https://') || url.startsWith('http://');
 };
+
+/**
+ * Official sendExamResult function for direct Google Sheets synchronization
+ * Dispatches live exam completion payloads to the Google Apps Script backend using mode: 'no-cors'
+ */
+export async function sendExamResult(
+  studentId: string,
+  studentName: string,
+  examTitle: string,
+  score: number | string,
+  earnedXp: number,
+  device = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.() ? 'Android App' : 'Web App'
+): Promise<boolean> {
+  const customUrl = getCustomWebhookUrl();
+  const url = customUrl && customUrl !== DEFAULT_WEBHOOK_URL ? customUrl : OFFICIAL_SHEETS_URL;
+
+  const payload = {
+    studentId: studentId,
+    studentName: studentName,
+    section: 'المناهج والدروس',
+    eventAction: 'إنهاء اختبار',
+    details: `${examTitle} | الدرجة: ${score}`,
+    xp: earnedXp,
+    device: device,
+  };
+
+  try {
+    await fetch(url, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    console.log('تم إرسال النتيجة إلى الشيت بنجاح!');
+    return true;
+  } catch (err) {
+    console.error('فشل إرسال البيانات:', err);
+    return false;
+  }
+}
+
+if (typeof window !== 'undefined') {
+  (window as any).sendExamResult = sendExamResult;
+}
 
 export const setCustomWebhookUrl = (url: string): void => {
   if (typeof window === 'undefined') return;

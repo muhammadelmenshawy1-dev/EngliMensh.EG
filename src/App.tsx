@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { MainAppTab, StudentProfile, ExamHistoryRecord } from './types.ts';
 import { getStoredStudent, recordExamCompletion, clearStudentSession } from './services/studentStorage.ts';
-import { syncExamResultToCloud, CloudSyncPayload } from './services/cloudSync.ts';
+import { syncExamResultToCloud, sendExamResult, CloudSyncPayload } from './services/cloudSync.ts';
 import { speakText, stopSpeaking } from './utils/speechService.ts';
 import {
   initGlobalBackNavigationListener,
@@ -508,6 +508,16 @@ export default function App() {
         platform: isPackagedMobileEnvironment() ? 'android-capacitor' : 'web-pwa',
       };
       syncExamResultToCloud(syncPayload);
+
+      // Direct delivery to Google Sheets via Google Apps Script Web App
+      sendExamResult(
+        updatedStudent.id,
+        updatedStudent.name,
+        activeExam.levelTitle,
+        `${totalAchieved}/${totalPossible}`,
+        Math.round(calculatedPercentage / 2),
+        isPackagedMobileEnvironment() ? 'Android App' : 'Web App'
+      );
 
       setExamState('result');
     } finally {
@@ -1815,6 +1825,7 @@ export default function App() {
                 </div>
 
                 <button
+                  id="submitExamBtn"
                   type="button"
                   onClick={() => setShowSubmitConfirmModal(true)}
                   className="px-4 py-2 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-sm cursor-pointer"

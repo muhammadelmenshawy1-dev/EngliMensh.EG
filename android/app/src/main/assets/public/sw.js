@@ -99,7 +99,7 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "revision": "b37dbe24fbe26389068306dda0b676c3"
   }, {
     "url": "index.html",
-    "revision": "684e5808d2a4705c744cfc0f413833f3"
+    "revision": "d5166eb0df48ce8971a701b896d76172"
   }, {
     "url": "apple-touch-icon.png",
     "revision": "45c45b27d79d3e154be0d3135848c98f"
@@ -119,7 +119,7 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "url": "assets/index-Cr59B4tg.css",
     "revision": null
   }, {
-    "url": "assets/index-BWjLUimk.js",
+    "url": "assets/index-BO8_axDi.js",
     "revision": null
   }, {
     "url": "assets/curriculum-secondary-BCfG0iJv.js",

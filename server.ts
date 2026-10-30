@@ -425,6 +425,43 @@ Return ONLY a valid JSON object matching this schema:
   }
 });
 
+// 5. EngliMensh AI Intelligent Pedagogical Co-Pilot & Student Recommendation Endpoint
+app.post(['/api/copilot/recommend', '/api/copilot/feedback'], (req, res) => {
+  const { studentName, xp = 0, completedLessons = 0 } = req.body || {};
+  const name = String(studentName || 'البطل').trim();
+  const numXp = Number(xp) || 0;
+  const numLessons = Number(completedLessons) || 0;
+
+  let cheerEn = '';
+  let cheerAr = '';
+  let recommendationAr = '';
+
+  if (numXp < 100 || numLessons < 2) {
+    cheerEn = `Wonderful start, ${name}! Every single step counts!`;
+    cheerAr = `بداية رائعة يا ${name}! كل خطوة تقربك من التميز!`;
+    recommendationAr = `التحدي التالي المقترح: تجربة لعبة (ضربات الجزاء) أو مراجعة 5 كلمات جديدة في (بنك كلماتي)!`;
+  } else if (numXp <= 200) {
+    cheerEn = `Great progress, ${name}! Keep up the brilliant work!`;
+    cheerAr = `تقدم رائع يا ${name}! استمر في هذا الأداء المتألق!`;
+    recommendationAr = `التحدي التالي المقترح: خوض منافسة في لعبة (شد الحبل) لمضاعفة نقاطك وإتقان القواعد!`;
+  } else {
+    cheerEn = `Outstanding achievement, ${name}! You are unstoppable!`;
+    cheerAr = `إنجاز استثنائي يا ${name}! عزيمتك لا تُقهر!`;
+    recommendationAr = `التحدي التالي المقترح: المشاركة في (بطولة البولينج) لحصد شارة بطل الأسبوع وتصدر لوحة الصدارة!`;
+  }
+
+  const line1 = `${cheerEn} | ${cheerAr}`;
+  const line2 = recommendationAr;
+
+  return res.json({
+    success: true,
+    line1,
+    line2,
+    output: `${line1}\n${line2}`,
+    tier: numXp < 100 || numLessons < 2 ? 1 : numXp <= 200 ? 2 : 3,
+  });
+});
+
 // -------------------------------------------------------------------------
 // VITE / STATIC FILE SERVING
 // -------------------------------------------------------------------------
